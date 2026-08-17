@@ -226,7 +226,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
             <button 
               type="submit" 
               disabled={isSubmitting}
-              className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-2xs"
+              className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-2xs"
             >
               {isSubmitting ? 'Menyimpan Aturan...' : 'Simpan Aturan QC Perumahan Baru'}
             </button>

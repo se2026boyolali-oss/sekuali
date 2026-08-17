@@ -12,7 +12,7 @@ const ProtectedRoute = ({ children, allowedAccountTypes }) => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-xs font-bold text-slate-500">
-        Memeriksa Sesi SIMALI QC...
+        Memeriksa Sesi SITABUL QC...
       </div>
     );
   }

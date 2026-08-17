@@ -11,7 +11,7 @@ import {
 
 export default function AdminDashboardPage() {
   const { profile, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('RULES');
+  const [activeTab, setActiveTab] = useState('TABULASI');
   const [selectedModul, setSelectedModul] = useState('PERUMAHAN'); 
 
   // State Data Master
@@ -199,9 +199,9 @@ export default function AdminDashboardPage() {
       {/* NAVBAR */}
       <header className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-20 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <Settings className="w-6 h-6 text-orange-400" />
+          <Settings className="w-6 h-6 text-sky-400" />
           <div>
-            <h1 className="font-black text-base sm:text-lg tracking-wide text-orange-400">SIMALI - PANEL ADMIN</h1>
+            <h1 className="font-black text-base sm:text-lg tracking-wide text-sky-400">SITABUL - PANEL ADMIN</h1>
             <p className="text-[10px] text-slate-400">Pengelolaan Sektor, Aturan QC & Import Data CSV</p>
           </div>
         </div>
@@ -226,7 +226,7 @@ export default function AdminDashboardPage() {
                   onClick={() => setSelectedModul(mod.modul_id)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     selectedModul === mod.modul_id
-                      ? 'bg-orange-600 text-white shadow-xs'
+                      ? 'bg-sky-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -238,7 +238,7 @@ export default function AdminDashboardPage() {
 
           <div className="text-right hidden sm:block">
             <span className="text-[10px] font-mono text-slate-400 block">Modul Aktif:</span>
-            <span className="text-xs font-black text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200">
+            <span className="text-xs font-black text-sky-600 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200">
               {selectedModul}
             </span>
           </div>
@@ -246,11 +246,22 @@ export default function AdminDashboardPage() {
 
         {/* TAB NAVIGATION */}
         <div className="flex border-b border-slate-200 gap-2 overflow-x-auto">
+
+                    <button
+            onClick={() => setActiveTab('TABULASI')}
+            className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
+              activeTab === 'TABULASI' 
+                ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <BarChart2 className="w-4 h-4" /> Tabulasi Hasil Pendataan
+          </button>
           <button
             onClick={() => setActiveTab('RULES')}
             className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
               activeTab === 'RULES' 
-                ? 'bg-white text-orange-600 border-t-2 border-orange-600 shadow-2xs' 
+                ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -261,7 +272,7 @@ export default function AdminDashboardPage() {
             onClick={() => setActiveTab('KOLOM')}
             className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
               activeTab === 'KOLOM' 
-                ? 'bg-white text-orange-600 border-t-2 border-orange-600 shadow-2xs' 
+                ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -272,23 +283,14 @@ export default function AdminDashboardPage() {
             onClick={() => setActiveTab('IMPORT')}
             className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
               activeTab === 'IMPORT' 
-                ? 'bg-white text-orange-600 border-t-2 border-orange-600 shadow-2xs' 
+                ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             <Upload className="w-4 h-4" /> Import Data CSV
           </button>
 
-          <button
-            onClick={() => setActiveTab('TABULASI')}
-            className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
-              activeTab === 'TABULASI' 
-                ? 'bg-white text-orange-600 border-t-2 border-orange-600 shadow-2xs' 
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <BarChart2 className="w-4 h-4" /> Analisis Proporsi Sensus
-          </button>
+
         </div>
 
         {/* TAB 1: RULES - MEMANGGIL KOMPONEN PER MODUL */}
@@ -310,7 +312,7 @@ export default function AdminDashboardPage() {
             <section className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Database className="w-4 h-4 text-orange-600" /> 
+                  <Database className="w-4 h-4 text-sky-600" /> 
                   {editingKolomId ? 'Edit Registrasi Kolom' : 'Registrasi Kolom DB & Setting Range Tabulasi'} [{selectedModul}]
                 </h2>
                 {editingKolomId && (
@@ -329,7 +331,7 @@ export default function AdminDashboardPage() {
                     placeholder="Contoh: biaya_sewa"
                     value={namaKolomDb}
                     onChange={(e) => setNamaKolomDb(e.target.value)}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-sky-500 focus:outline-none"
                   />
                 </div>
 
@@ -341,7 +343,7 @@ export default function AdminDashboardPage() {
                     placeholder="Contoh: Biaya Sewa Bulanan"
                     value={labelTampilan}
                     onChange={(e) => setLabelTampilan(e.target.value)}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
                   />
                 </div>
 
@@ -447,7 +449,7 @@ export default function AdminDashboardPage() {
           <div className="space-y-6">
             <section className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-4">
               <div className="flex items-center gap-3">
-                <FileSpreadsheet className="w-8 h-8 text-orange-600" />
+                <FileSpreadsheet className="w-8 h-8 text-sky-600" />
                 <div>
                   <h2 className="text-sm font-bold text-slate-900">Import File CSV Data Hasil Sensus [{selectedModul}]</h2>
                   <p className="text-xs text-slate-500">Unggah file CSV hasil pendataan. Data akan otomatis dievaluasi dengan aturan QC aktif.</p>
@@ -458,7 +460,7 @@ export default function AdminDashboardPage() {
                 <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-3 bg-slate-50/50 hover:bg-slate-50 transition-colors">
                   <Upload className="w-10 h-10 text-slate-400 mx-auto" />
                   <div>
-                    <label htmlFor="csv-file-input" className="cursor-pointer text-xs font-bold text-orange-600 hover:underline">
+                    <label htmlFor="csv-file-input" className="cursor-pointer text-xs font-bold text-sky-600 hover:underline">
                       Pilih File CSV
                     </label>
                     <input 
@@ -481,7 +483,7 @@ export default function AdminDashboardPage() {
                       <span>{uploadProgress}%</span>
                     </div>
                     <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-orange-600 h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                      <div className="bg-sky-600 h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
                     </div>
                   </div>
                 )}
@@ -500,7 +502,7 @@ export default function AdminDashboardPage() {
                 <button
                   type="submit"
                   disabled={uploading || !csvFile}
-                  className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-2xs"
+                  className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-2xs"
                 >
                   {uploading ? 'Memproses Import...' : 'Mulai Import CSV'}
                 </button>

@@ -40,35 +40,63 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
   });
   const [toastMessage, setToastMessage] = useState(null);
 
+  // HELPER FORMAT ANGKA RIBUAN INDONESIA
+  const formatAngka = (val) => {
+    if (val === null || val === undefined || val === '') return '-';
+    const num = Number(val);
+    if (isNaN(num)) return val;
+    return num.toLocaleString('id-ID');
+  };
+
+  // HELPER FORMAT HEADER KATEGORI (MENDUKUNG ANGKA TUNGGAL ATAU RENTANG MISAL "100000 - 500000")
+  const formatHeaderKategori = (catText) => {
+    const text = String(catText || '').trim();
+
+    // 1. Jika berupa angka murni (misal: "700000" -> "700.000")
+    if (/^[0-9.]+$/.test(text)) {
+      return formatAngka(text);
+    }
+
+    // 2. Jika berupa rentang (misal: "250000 - 500000" -> "250.000 - 500.000")
+    if (/^[0-9.]+\s*-\s*[0-9.]+$/.test(text)) {
+      const parts = text.split('-').map(p => p.trim());
+      if (parts.length === 2) {
+        return `${formatAngka(parts[0])} - ${formatAngka(parts[1])}`;
+      }
+    }
+
+    // 3. Jika operator perbandingan (misal: ">= 50000" atau "> 50000")
+    const matchOp = text.match(/^(>=|<=|>|<|=)\s*([0-9.]+)$/);
+    if (matchOp) {
+      return `${matchOp[1]} ${formatAngka(matchOp[2])}`;
+    }
+
+    // Default: kembalikan teks asli (misal: "Bambu", "Seng", dll)
+    return text;
+  };
+
   // HELPER DETEKSI OPERATOR DARI TEKS KATEGORI
   const detectOperatorAndValue = (catText) => {
     const text = String(catText || '').trim();
 
-    // 1. Rentang (Rentang Min - Max, misal: "1000 - 20000" atau "250000 - 500000")
     if (/^[0-9.]+\s*-\s*[0-9.]+$/.test(text)) {
       return { operator: 'BETWEEN' };
     }
-    // 2. Lebih Dari Sama Dengan (misal: ">= 50000")
     if (/^>=\s*[0-9.]+$/.test(text)) {
       return { operator: '>=' };
     }
-    // 3. Lebih Dari (misal: "> 50000")
     if (/^>\s*[0-9.]+$/.test(text)) {
       return { operator: '>' };
     }
-    // 4. Kurang Dari Sama Dengan (misal: "<= 1000")
     if (/^<=\s*[0-9.]+$/.test(text)) {
       return { operator: '<=' };
     }
-    // 5. Kurang Dari (misal: "< 1000")
     if (/^<\s*[0-9.]+$/.test(text)) {
       return { operator: '<' };
     }
-    // 6. Sama Dengan (misal: "= 50")
     if (/^=\s*[0-9.]+$/.test(text)) {
       return { operator: '=' };
     }
-    // 7. Default Teks/String (misal: "Bambu", "Seng")
     return { operator: 'IN' };
   };
 
@@ -198,7 +226,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
 
     setModalTitleInfo({
       wilayah: row.nama_wilayah,
-      kategori: `${labelKolom}: "${category}"`,
+      kategori: `${labelKolom}: "${formatHeaderKategori(category)}"`,
       count: count
     });
     setSearchFilter('');
@@ -236,7 +264,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
       kolom: selectedKolom,
       labelKolom: labelKolom,
       kategori: category,
-      operator: operator, // Set default operator hasil deteksi
+      operator: operator,
       keterangan: `Perlu konfirmasi/pengecekan lapangan untuk indikator ${labelKolom} (${operator} ${category})`
     });
     setIsRuleModalOpen(true);
@@ -253,13 +281,13 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
         p_kolom: ruleData.kolom,
         p_kategori: ruleData.kategori,
         p_keterangan: ruleData.keterangan,
-        p_operator: ruleData.operator // Mengirimkan operator yang dikonfirmasi/dipilih user
+        p_operator: ruleData.operator
       });
 
       if (error) throw error;
 
       setIsRuleModalOpen(false);
-      showToast(`Aturan QC [${ruleData.operator}] "${ruleData.kategori}" berhasil ditambahkan!`);
+      showToast(`Aturan QC [${ruleData.operator}] "${formatHeaderKategori(ruleData.kategori)}" berhasil ditambahkan!`);
       
       await fetchActiveRules();
       if (onRuleAdded) {
@@ -303,7 +331,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-orange-600" /> Profil & Tabulasi Silang Wilayah
+              <BarChart2 className="w-4 h-4 text-sky-600" /> Profil & Tabulasi Silang Wilayah
             </h2>
             <p className="text-xs text-slate-500">
               Klik ikon <span className="font-bold text-amber-600">+ Rule QC</span> di header tabel untuk menjadikan kategori tersebut sebagai Aturan Anomali.
@@ -316,7 +344,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
               value={selectedKolom}
               onChange={(e) => setSelectedKolom(e.target.value)}
               disabled={loading}
-              className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50 focus:ring-2 focus:ring-orange-500 disabled:opacity-50"
+              className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50 focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
             >
               {kolomOptions.map(col => (
                 <option key={col.nama_kolom_db} value={col.nama_kolom_db}>
@@ -331,7 +359,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
         <div className="flex items-center gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 font-medium overflow-x-auto">
           <button
             onClick={resetToKabupaten}
-            className={`flex items-center gap-1 font-bold shrink-0 ${!currentKec.code ? 'text-orange-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`flex items-center gap-1 font-bold shrink-0 ${!currentKec.code ? 'text-sky-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
           >
             <Home className="w-3.5 h-3.5" /> [3309] KAB. BOYOLALI
           </button>
@@ -341,7 +369,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
               <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <button
                 onClick={() => setCurrentDesa({ code: null, name: '' })}
-                className={`font-bold shrink-0 ${!currentDesa.code ? 'text-orange-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`font-bold shrink-0 ${!currentDesa.code ? 'text-sky-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 KEC. {currentKec.name}
               </button>
@@ -351,7 +379,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
           {currentDesa.code && (
             <>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="font-extrabold text-orange-600 shrink-0">DESA {currentDesa.name}</span>
+              <span className="font-extrabold text-sky-600 shrink-0">DESA {currentDesa.name}</span>
             </>
           )}
         </div>
@@ -366,13 +394,13 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
             </span>
           </div>
           <div className="text-xs font-bold text-slate-700">
-            Total Sampel Wilayah: <span className="text-orange-600 font-mono font-black">{grandTotal.toLocaleString()} RT</span>
+            Total Sampel Wilayah: <span className="text-sky-600 font-mono font-black">{grandTotal.toLocaleString('id-ID')} RT</span>
           </div>
         </div>
 
         {loading ? (
           <div className="text-center py-16 text-slate-400 text-xs font-bold flex items-center justify-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-orange-500" /> Memuat Agregasi Data Matriks...
+            <RefreshCw className="w-4 h-4 animate-spin text-sky-500" /> Memuat Agregasi Data Matriks...
           </div>
         ) : matrixData.length === 0 ? (
           <div className="text-center py-12 text-slate-400 text-xs italic">Data tidak ditemukan pada hirarki wilayah ini.</div>
@@ -390,12 +418,13 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                     return (
                       <th key={idx} className="p-3 border-r border-slate-200 min-w-[150px] group relative hover:bg-slate-200/70 transition-colors">
                         <div className="flex flex-col items-center justify-between gap-1.5 text-center h-full">
-                          <span className="break-words line-clamp-2">{cat}</span>
+                          {/* 🔥 Memanggil formatHeaderKategori agar angka/rentang di header ikut bertitik ribuan */}
+                          <span className="break-words line-clamp-2">{formatHeaderKategori(cat)}</span>
                           
                           {alreadyAdded ? (
                             <span 
                               className="mt-1 bg-slate-200 text-slate-500 text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 cursor-not-allowed border border-slate-300"
-                              title={`Kategori "${cat}" sudah masuk dalam Aturan QC`}
+                              title={`Kategori "${formatHeaderKategori(cat)}" sudah masuk dalam Aturan QC`}
                             >
                               <Check className="w-2.5 h-2.5 text-emerald-600" />
                               <span>Sudah Ada</span>
@@ -404,7 +433,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                             <button
                               onClick={(e) => handleOpenRuleModal(e, cat)}
                               className="mt-1 opacity-70 group-hover:opacity-100 hover:scale-105 transition-all bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer shadow-xs"
-                              title={`Jadikan "${cat}" sebagai Aturan Anomali QC`}
+                              title={`Jadikan "${formatHeaderKategori(cat)}" sebagai Aturan Anomali QC`}
                             >
                               <AlertTriangle className="w-2.5 h-2.5" />
                               <span>+ Rule QC</span>
@@ -421,12 +450,12 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                   const rowTotal = Number(row.total_rt || 0);
 
                   return (
-                    <tr key={rIdx} className="hover:bg-orange-50/30 transition-colors">
+                    <tr key={rIdx} className="hover:bg-sky-50/30 transition-colors">
                       <td className="p-3 border-r border-slate-200 sticky left-0 bg-white font-bold text-slate-900">
                         {row.level_wilayah !== 'SLS' ? (
                           <button
                             onClick={() => handleWilayahClick(row)}
-                            className="text-orange-600 hover:text-orange-800 underline font-black text-left flex items-center justify-between w-full group cursor-pointer"
+                            className="text-sky-600 hover:text-sky-800 underline font-black text-left flex items-center justify-between w-full group cursor-pointer"
                           >
                             <span>{row.nama_wilayah}</span>
                             <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -437,7 +466,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                       </td>
 
                       <td className="p-3 border-r border-slate-200 text-center font-mono font-bold text-slate-800 bg-slate-50/50">
-                        {rowTotal.toLocaleString()}
+                        {rowTotal.toLocaleString('id-ID')}
                       </td>
 
                       {categories.map((cat, cIdx) => {
@@ -450,21 +479,21 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                             onClick={() => handleCellClick(row, cat, count)}
                             className={`p-2 border-r border-slate-100 align-middle transition-all ${
                               count > 0 
-                                ? 'cursor-pointer hover:bg-orange-100/80 hover:shadow-inner' 
+                                ? 'cursor-pointer hover:bg-sky-100/80 hover:shadow-inner' 
                                 : 'opacity-40'
                             }`}
-                            title={count > 0 ? `Klik untuk lihat ${count} daftar KK pada kategori "${cat}"` : ''}
+                            title={count > 0 ? `Klik untuk lihat ${count} daftar KK pada kategori "${formatHeaderKategori(cat)}"` : ''}
                           >
                             <div className="space-y-1">
                               <div className="flex justify-between items-center text-[11px]">
-                                <span className={`font-mono font-bold ${count > 0 ? 'text-orange-700 underline' : 'text-slate-400'}`}>
-                                  {count.toLocaleString()}
+                                <span className={`font-mono font-bold ${count > 0 ? 'text-sky-700 underline' : 'text-slate-400'}`}>
+                                  {count.toLocaleString('id-ID')}
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-500">{pct}%</span>
                               </div>
                               <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
                                 <div
-                                  className="bg-orange-500 h-full rounded-full transition-all duration-300"
+                                  className="bg-sky-500 h-full rounded-full transition-all duration-300"
                                   style={{ width: `${pct}%` }}
                                 ></div>
                               </div>
@@ -482,8 +511,8 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                   <td className="p-3 border-r border-slate-300 sticky left-0 bg-slate-200 z-10 uppercase">
                     TOTAL KESELURUHAN
                   </td>
-                  <td className="p-3 border-r border-slate-300 text-center font-mono font-black text-orange-700">
-                    {grandTotal.toLocaleString()}
+                  <td className="p-3 border-r border-slate-300 text-center font-mono font-black text-sky-700">
+                    {grandTotal.toLocaleString('id-ID')}
                   </td>
                   {categories.map((cat, idx) => {
                     const catTotal = calculateCategoryTotal(cat);
@@ -492,8 +521,8 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                     return (
                       <td key={idx} className="p-3 text-center border-r border-slate-300 font-mono">
                         <div className="flex justify-between items-center text-[11px]">
-                          <span className="font-bold text-slate-900">{catTotal.toLocaleString()}</span>
-                          <span className="text-orange-700 font-black">{catPct}%</span>
+                          <span className="font-bold text-slate-900">{catTotal.toLocaleString('id-ID')}</span>
+                          <span className="text-sky-700 font-black">{catPct}%</span>
                         </div>
                       </td>
                     );
@@ -517,7 +546,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
           >
             <div className="bg-slate-900 text-white p-4 flex justify-between items-start shrink-0">
               <div className="space-y-1">
-                <div className="flex items-center gap-2 text-orange-400 font-bold text-xs">
+                <div className="flex items-center gap-2 text-sky-400 font-bold text-xs">
                   <Users className="w-4 h-4" /> DAFTAR RUMAH TANGGA / KK
                 </div>
                 <h3 className="text-base font-black text-white">{modalTitleInfo.wilayah}</h3>
@@ -542,18 +571,18 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                   placeholder="Cari Nama KK, No. Bangunan, atau RT/Dusun..."
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none font-medium"
+                  className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium"
                 />
               </div>
               <div className="text-xs font-bold text-slate-600 whitespace-nowrap bg-white px-3 py-2 rounded-xl border border-slate-200">
-                Total: <span className="text-orange-600 font-black">{filteredDetailList.length}</span> / {modalTitleInfo.count} RT
+                Total: <span className="text-sky-600 font-black">{filteredDetailList.length}</span> / {modalTitleInfo.count} RT
               </div>
             </div>
 
             <div className="p-4 overflow-y-auto flex-1">
               {modalLoading ? (
                 <div className="py-16 text-center text-slate-400 text-xs font-bold flex items-center justify-center gap-2">
-                  <RefreshCw className="w-4 h-4 animate-spin text-orange-500" /> Memuat Daftar Nama Kepala Keluarga...
+                  <RefreshCw className="w-4 h-4 animate-spin text-sky-500" /> Memuat Daftar Nama Kepala Keluarga...
                 </div>
               ) : filteredDetailList.length === 0 ? (
                 <div className="py-12 text-center text-slate-400 text-xs italic">
@@ -573,10 +602,10 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
                       {filteredDetailList.map((item, idx) => (
-                        <tr key={item.assignment_id || idx} className="hover:bg-orange-50/50 transition-colors">
+                        <tr key={item.assignment_id || idx} className="hover:bg-sky-50/50 transition-colors">
                           <td className="p-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
                           <td className="p-2.5 font-bold text-slate-900 flex items-center gap-1.5">
-                            <Building className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                            <Building className="w-3.5 h-3.5 text-sky-500 shrink-0" />
                             <span>{item.nama_kk}</span>
                           </td>
                           <td className="p-2.5 text-slate-600">
@@ -590,8 +619,8 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                             </span>
                           </td>
                           <td className="p-2.5 text-center">
-                            <span className="bg-orange-100 text-orange-900 text-[11px] font-extrabold px-2.5 py-1 rounded-lg border border-orange-200 inline-block font-mono">
-                              {item.nilai_indikator}
+                            <span className="bg-sky-100 text-sky-900 text-[11px] font-extrabold px-2.5 py-1 rounded-lg border border-sky-200 inline-block font-mono">
+                              {formatAngka(item.nilai_indikator)}
                             </span>
                           </td>
                         </tr>
@@ -616,7 +645,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
         </div>
       )}
 
-      {/* MODAL PEMBUATAN ATURAN QC ANOMALI (WITH OPERATOR SELECTOR) */}
+      {/* MODAL PEMBUATAN ATURAN QC ANOMALI */}
       {isRuleModalOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
@@ -652,12 +681,12 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                   <div>
                     <span className="text-slate-500 text-[10px] uppercase font-bold block">Nilai Kategori Header:</span>
                     <span className="font-extrabold text-amber-900 text-xs bg-amber-100/80 px-2.5 py-1 rounded-lg border border-amber-300 inline-block font-mono mt-0.5">
-                      "{ruleData.kategori}"
+                      "{formatHeaderKategori(ruleData.kategori)}"
                     </span>
                   </div>
                 </div>
 
-                {/* DROPDOWN OPERATOR QC (DETEKSI OTOMATIS & DAPAT DIBAUAT MANUAL) */}
+                {/* DROPDOWN OPERATOR QC */}
                 <div className="space-y-1.5">
                   <label className="font-bold text-slate-700 flex items-center gap-1.5">
                     <Sliders className="w-3.5 h-3.5 text-amber-600" /> Operator Perbandingan QC:
@@ -669,15 +698,12 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                   >
                     <option value="IN">IN (Sesuai Salah Satu List Teks / String)</option>
                     <option value="BETWEEN">BETWEEN (Rentang / Custom Range Nilai)</option>
-                    <option value="=">= (Sama Dengan Nilai Spesiik)</option>
+                    <option value="=">= (Sama Dengan Nilai Spesifik)</option>
                     <option value=">">&gt; (Lebih Dari)</option>
                     <option value=">=">&gt;= (Lebih Dari Sama Dengan)</option>
                     <option value="<">&lt; (Kurang Dari)</option>
                     <option value="<=">&lt;= (Kurang Dari Sama Dengan)</option>
                   </select>
-                  <p className="text-[10px] text-slate-400 italic">
-                    Operator otomatis terdeteksi berdasarkan pola header. Anda dapat menyesuaikannya secara manual.
-                  </p>
                 </div>
 
                 {/* CATATAN / REASON */}
