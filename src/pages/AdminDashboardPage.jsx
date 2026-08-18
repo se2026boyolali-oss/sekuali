@@ -3,7 +3,8 @@ import { supabaseData } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import Papa from 'papaparse';
 import QCRulesPerumahanTab from '../components/QCRulesPerumahanTab';
-import TabulasiPerumahanTab from '../components/TabulasiPerumahanTab';
+// 💡 PERUBAHAN: Import komponen generik (reusable)
+import TabulasiMatrixTab from '../components/TabulasiMatrixTab';
 import RekapAnomaliPetugasTab from '../components/RekapAnomaliPetugasTab';
 import { 
   Settings, ShieldAlert, Upload, Users,
@@ -16,7 +17,6 @@ export default function AdminDashboardPage() {
   const [selectedModul, setSelectedModul] = useState('PERUMAHAN'); 
 
   // Pengecekan Hak Akses Admin
-  // (True jika role-nya 'admin' atau tipe_akun 'KANTOR' ber-role admin)
   const isAdmin = profile?.role?.toLowerCase() === 'admin' || profile?.tipe_akun === 'KANTOR_ADMIN';
 
   // State Data Master
@@ -136,7 +136,9 @@ export default function AdminDashboardPage() {
     return val;
   };
 
-  // Handler Process Upload File CSV
+  // =========================================================================
+  // HANDLER PROCESS UPLOAD CSV (TERHUBUNG KE SEMUA MODUL: PERUMAHAN & INDIVIDU)
+  // =========================================================================
   const handleProcessCsvUpload = (e) => {
     e.preventDefault();
     if (!csvFile) return alert("Silakan pilih file CSV terlebih dahulu!");
@@ -145,9 +147,17 @@ export default function AdminDashboardPage() {
     setUploadProgress(0);
     setUploadStatus(null);
 
+    // 1. Tentukan Tabel Target & Unique Conflict Keys
     let targetTable = 'assignments';
-    if (selectedModul === 'INDIVIDU') targetTable = 'data_individu';
-    if (selectedModul === 'USAHA') targetTable = 'data_usaha';
+    let conflictKeys = 'assignment_id';
+
+    if (selectedModul === 'INDIVIDU') {
+      targetTable = 'assignments_individu';
+      conflictKeys = 'assignment_id, index1'; // Composite Key untuk Modul INDIVIDU
+    } else if (selectedModul === 'USAHA') {
+      targetTable = 'assignments_usaha';
+      conflictKeys = 'assignment_id, no_usaha';
+    }
 
     Papa.parse(csvFile, {
       header: true,
@@ -162,23 +172,25 @@ export default function AdminDashboardPage() {
         }
 
         try {
+          // 2. Pembersihan Data (Sanitasi)
           const cleanedRows = rawRows.map(row => {
             const processedRow = {};
             
             Object.keys(row).forEach(key => {
-              if (key === 'assignment_id') {
-                processedRow[key] = String(row[key] || '').trim();
+              const cleanKey = key.trim();
+              if (cleanKey === 'assignment_id') {
+                processedRow[cleanKey] = String(row[key] || '').trim();
+              } else if (cleanKey === 'index1') {
+                processedRow[cleanKey] = Number(row[key]) || 1; // Pastikan Angka/Integer
               } else {
-                processedRow[key] = cleanValue(row[key]);
+                processedRow[cleanKey] = cleanValue(row[key]);
               }
             });
 
-            return {
-              ...processedRow,
-              modul_id: selectedModul
-            };
+            return processedRow;
           });
 
+          // 3. Batch Insert / Upsert (Per 100 Baris)
           const BATCH_SIZE = 100;
           const totalRows = cleanedRows.length;
           let insertedCount = 0;
@@ -187,22 +199,30 @@ export default function AdminDashboardPage() {
             const batch = cleanedRows.slice(i, i + BATCH_SIZE);
             
             const { error } = await supabaseData.from(targetTable).upsert(batch, {
-              onConflict: 'assignment_id'
+              onConflict: conflictKeys
             });
+
             if (error) throw error;
 
             insertedCount += batch.length;
             setUploadProgress(Math.round((insertedCount / totalRows) * 100));
           }
 
+          // 4. Jalankan Re-Evaluasi QC Otomatis Pasca Upsert
+          try {
+            await supabaseData.rpc('reevaluate_all_assignments');
+          } catch (evalErr) {
+            console.warn("Re-evaluasi QC timeout / warning:", evalErr);
+          }
+
           setUploadStatus({ 
             type: 'success', 
-            message: `Berhasil mengimpor/mengupdate ${insertedCount} data pada tabel [${targetTable}]!` 
+            message: `Berhasil mengimpor / mengupdate ${insertedCount} data pada tabel [${targetTable}]!` 
           });
           setCsvFile(null);
         } catch (err) {
           console.error("Error Import CSV:", err);
-          setUploadStatus({ type: 'error', message: `Gagal menyimpan: ${err.message}` });
+          setUploadStatus({ type: 'error', message: `Gagal menyimpan data: ${err.message}` });
         } finally {
           setUploading(false);
         }
@@ -266,7 +286,6 @@ export default function AdminDashboardPage() {
 
         {/* TAB NAVIGATION HIERARKI */}
         <div className="flex border-b border-slate-200 gap-2 overflow-x-auto">
-          {/* TAB UNTUK SEMUA USER (PEGAWAI KANTOR & ADMIN) */}
           <button
             onClick={() => setActiveTab('TABULASI')}
             className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
@@ -289,7 +308,6 @@ export default function AdminDashboardPage() {
             <Users className="w-4 h-4" /> Rekap Pengecekan Petugas
           </button>
 
-          {/* TAB KHUSUS ROLE ADMIN */}
           {isAdmin && (
             <>
               <button
@@ -328,24 +346,27 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        {/* CONTENT VIEW TABULASI (Semua Role) */}
-        {activeTab === 'TABULASI' && <TabulasiPerumahanTab />}
+        {/* CONTENT VIEW TABULASI */}
+        {/* 💡 PERUBAHAN: Masukkan props selectedModul */}
+        {activeTab === 'TABULASI' && <TabulasiMatrixTab selectedModul={selectedModul} />}
 
-        {/* CONTENT VIEW REKAP PETUGAS (Semua Role) */}
-        {activeTab === 'REKAP_PETUGAS' && <RekapAnomaliPetugasTab />}
+        {/* CONTENT VIEW REKAP PETUGAS */}
+        {/* 💡 PERUBAHAN: Masukkan props selectedModul */}
+        {activeTab === 'REKAP_PETUGAS' && <RekapAnomaliPetugasTab selectedModul={selectedModul} />}
 
         {/* KONTEN TERKUNCI KHUSUS ADMIN */}
         {isAdmin && (
           <>
             {/* TAB RULES */}
             {activeTab === 'RULES' && (
+              // 💡 PERUBAHAN: Tambahkan prop modul ke komponen Rules Perumahan
               selectedModul === 'PERUMAHAN' ? (
-                <QCRulesPerumahanTab />
+                <QCRulesPerumahanTab selectedModul={selectedModul} />
               ) : (
                 <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-2">
                   <ShieldAlert className="w-10 h-10 text-slate-300 mx-auto" />
                   <h3 className="font-bold text-slate-700 text-sm">Modul [{selectedModul}] Dalam Pengembangan</h3>
-                  <p className="text-xs text-slate-400">Komponen Aturan QC untuk sektor ini dapat dibuat terpisah nanti.</p>
+                  <p className="text-xs text-slate-400">Komponen Aturan QC Cross-Column untuk sektor ini dapat dibuat terpisah nanti.</p>
                 </div>
               )
             )}
@@ -401,13 +422,14 @@ export default function AdminDashboardPage() {
                         <option value="STRING">Teks / Kategori (STRING)</option>
                         <option value="NUMBER">Angka / Rentang (NUMBER)</option>
                         <option value="BOOLEAN">Ya / Tidak (BOOLEAN)</option>
+                        <option value="GROUP">Grouping (Grup Khusus)</option>
                       </select>
                     </div>
 
-                    {tipeDataKolom === 'NUMBER' && (
+                    {(tipeDataKolom === 'NUMBER' || tipeDataKolom === 'GROUP') && (
                       <div className="md:col-span-3 bg-amber-50/80 p-4 rounded-xl border border-amber-200 space-y-2">
                         <label className="block text-xs font-bold text-amber-900">
-                          Pengelompokan Range Tabulasi (Khusus Tipe Data NUMBER)
+                          Pengelompokan Range Tabulasi (Khusus Tipe Data NUMBER atau GROUP)
                         </label>
                         <input 
                           type="text" 
@@ -496,7 +518,11 @@ export default function AdminDashboardPage() {
                     <FileSpreadsheet className="w-8 h-8 text-sky-600" />
                     <div>
                       <h2 className="text-sm font-bold text-slate-900">Import File CSV Data Hasil Sensus [{selectedModul}]</h2>
-                      <p className="text-xs text-slate-500">Unggah file CSV hasil pendataan. Data akan otomatis dievaluasi dengan aturan QC aktif.</p>
+                      <p className="text-xs text-slate-500">
+                        {selectedModul === 'INDIVIDU' 
+                          ? 'Unggah CSV Bagian 1 atau Bagian 2 Individu. Data akan otomatis di-merge berdasarkan (assignment_id + index1).' 
+                          : 'Unggah file CSV hasil pendataan. Data akan otomatis dievaluasi dengan aturan QC aktif.'}
+                      </p>
                     </div>
                   </div>
 
@@ -548,7 +574,7 @@ export default function AdminDashboardPage() {
                       disabled={uploading || !csvFile}
                       className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-2xs"
                     >
-                      {uploading ? 'Memproses Import...' : 'Mulai Import CSV'}
+                      {uploading ? 'Memproses Import...' : `Mulai Import CSV [Modul ${selectedModul}]`}
                     </button>
                   </form>
                 </section>

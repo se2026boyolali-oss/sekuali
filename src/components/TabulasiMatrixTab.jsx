@@ -55,7 +55,7 @@ const MASTER_KODE_MAP = {
   // 8a. Bahan Bangunan Utama Atap
   jns_atap_label: {
     'beton': { no: 1, label: '1. Beton' },
-    'genteng': { no: 2, label: '2. Genteng' },
+    'genteng': { no: 2, label: ' Genteng' },
     'seng': { no: 3, label: '3. Seng' },
     'asbes': { no: 4, label: '4. Asbes' },
     'bambu': { no: 5, label: '5. Bambu' },
@@ -147,7 +147,8 @@ const getPatenCategoryInfo = (selectedKolom, catText) => {
   return { no: 9999, label: rawText };
 };
 
-export default function TabulasiPerumahanTab({ onRuleAdded }) {
+// 💡 PERUBAHAN: Nama komponen diubah menjadi generik, menerima prop selectedModul (default: PERUMAHAN)
+export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleAdded }) {
   const { profile } = useAuth();
   const isAdmin = profile?.role?.toLowerCase() === 'admin' || profile?.tipe_akun === 'KANTOR_ADMIN';
   const [loading, setLoading] = useState(false);
@@ -158,7 +159,8 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
 
   // Target Variabel
   const [kolomOptions, setKolomOptions] = useState([]);
-  const [selectedKolom, setSelectedKolom] = useState('jns_dinding_label');
+  // 💡 PERUBAHAN: Nilai awal selectedKolom dikosongkan agar di-set secara dinamis saat fetchMasterKolom
+  const [selectedKolom, setSelectedKolom] = useState('');
 
   // Active Rules State (Untuk mengecek aturan yang sudah ada)
   const [activeRules, setActiveRules] = useState([]);
@@ -232,14 +234,19 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
       const { data, error } = await supabaseData
         .from('master_kolom_qc')
         .select('nama_kolom_db, label_tampilan, tipe_data')
-        .eq('modul_id', 'PERUMAHAN')
+        // 💡 PERUBAHAN: Gunakan variabel selectedModul
+        .eq('modul_id', selectedModul)
         .eq('is_active', true);
 
       if (error) throw error;
 
       setKolomOptions(data || []);
       if (data && data.length > 0) {
+        // 💡 PERUBAHAN: Set default kolom ke elemen pertama hasil fetch
         setSelectedKolom(data[0].nama_kolom_db);
+      } else {
+        // 💡 PERUBAHAN: Jika tidak ada kolom, kosongkan selectedKolom
+        setSelectedKolom('');
       }
     } catch (err) {
       console.error("Gagal memuat master kolom:", err.message);
@@ -252,7 +259,8 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
       const { data, error } = await supabaseData
         .from('rule_configurations')
         .select('*')
-        .eq('modul_id', 'PERUMAHAN')
+        // 💡 PERUBAHAN: Gunakan variabel selectedModul
+        .eq('modul_id', selectedModul)
         .eq('is_active', true);
 
       if (error) throw error;
@@ -262,17 +270,24 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
     }
   };
 
+  // 💡 PERUBAHAN: Reset navigasi wilayah dan fetch ulang master data saat selectedModul berubah
   useEffect(() => {
+    resetToKabupaten(); // Reset wilayah ke kabupaten saat modul ganti
     fetchMasterKolom();
     fetchActiveRules();
-  }, []);
+  }, [selectedModul]); // <-- Trigger saat prop selectedModul berubah
 
   // 3. Fetch Matrix Tabulasi
   const fetchMatrixTabulasi = async () => {
+    // 💡 PERUBAHAN: Jangan fetch jika selectedKolom kosong
+    if (!selectedKolom) return;
+
     setLoading(true);
     try {
-      const { data, error } = await supabaseData.rpc('get_tabulasi_matrix_perumahan', {
+      // 💡 PERUBAHAN: Tambahkan parameter p_modul_id ke RPC
+      const { data, error } = await supabaseData.rpc('get_tabulasi_matrix', {
         p_kolom: selectedKolom,
+        p_modul_id: selectedModul, // <-- Kirim modul_id ke backend
         p_kdkec: currentKec.code,
         p_kddesa: currentDesa.code
       });
@@ -447,13 +462,14 @@ const isCategoryInRule = (category) => {
     setModalLoading(true);
 
     try {
-      // 💡 PERBAIKAN: Kirim p_kdkec agar pencarian desa mengunci kecamatan yang sedang aktif
+      // 💡 PERBAIKAN: RPC get_detail_rt_tabulasi juga perlu p_modul_id agar mencari ke tabel data yang benar
       const { data, error } = await supabaseData.rpc('get_detail_rt_tabulasi', {
         p_kolom: selectedKolom,
+        p_modul_id: selectedModul, // <-- Tambahkan parameter modul
         p_kategori: category,
         p_kode_wilayah: row.kode_wilayah,
         p_level_wilayah: row.level_wilayah,
-        p_kdkec: currentKec.code // <-- Tambahkan baris ini
+        p_kdkec: currentKec.code 
       });
 
       if (error) throw error;
@@ -491,6 +507,7 @@ const isCategoryInRule = (category) => {
 
     setSavingRule(true);
     try {
+      // 💡 RPC backend save_rule_qc sudah generik menggunakan p_kolom yang terdaftar di master_kolom_qc yang difilter berdasarkan modul_id, jadi fungsi ini tetap sama
       const { error } = await supabaseData.rpc('save_rule_qc', {
         p_kolom: ruleData.kolom,
         p_kategori: ruleData.kategori,
