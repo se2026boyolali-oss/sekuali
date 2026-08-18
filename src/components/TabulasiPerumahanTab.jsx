@@ -14,7 +14,7 @@ const MASTER_KODE_MAP = {
   jns_lantai_label: {
     'marmer/granit': { no: 1, label: '1. Marmer/granit' },
     'keramik': { no: 2, label: '2. Keramik' },
-    'parket/vinil/karpet': { no: 3, label: '3. Parket/vinil/karpet' },
+    'Parket/vinil/permadani': { no: 3, label: '3. Parket/vinil/karpet' },
     'ubin/tegel/teraso': { no: 4, label: '4. Ubin/tegel/teraso' },
     'ubin/tegel/traso': { no: 4, label: '4. Ubin/tegel/teraso' }, // variasi penulisan
     'kayu/papan': { no: 5, label: '5. Kayu/papan' },
@@ -320,43 +320,83 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
 
 // 1. HELPER SANITASI TEKS UNIVERSAL
 // Menghapus nomor urut di awal (misal "7. ", "07. "), titik, garis miring, dan simbol khusus
+// 1. Fungsi sanitasi teks
+// 1. Sanitasi Teks
+// 1. Fungsi Sanitasi Teks
 const sanitizeTextForCheck = (str) => {
-  if (!str) return '';
+  if (str === undefined || str === null) return '';
   return String(str)
     .toLowerCase()
-    .replace(/^[0-9]+\.\s*/, '') // Hapus nomor urut di depan teks ("7. Bambu" -> "bambu")
-    .replace(/[^a-z0-9]/g, '')    // Hapus spasi dan simbol khusus ("semen/bata merah" -> "semenbatamerah")
+    .replace(/^[0-9]+\.\s*/, '') // Hapus nomor urut di depan teks ("1. Keramik" -> "keramik")
+    .replace(/\s+/g, '')         // Hapus semua spasi
     .trim();
 };
 
-// 2. FUNGSI CEK ATURAN QC UNIVERSAL (TOLERAN TERHADAP NOMOR URUT & SPASI)
+// 2. Fungsi Cek Aturan QC Universal
 const isCategoryInRule = (category) => {
   if (category === undefined || category === null) return false;
-  
-  // Teks mentah & teks tersanitasi dari header tabel
+
   const rawCat = String(category).trim().toLowerCase();
   const cleanCat = sanitizeTextForCheck(category);
 
   return activeRules.some(rule => {
-    // 1. Pastikan kolom targetnya sama persis
+    // 1. Pastikan kolom target sama
     if (rule.target_column !== selectedKolom) return false;
 
-    // 2. Cek nilai di trigger_values
-    if (Array.isArray(rule.trigger_values)) {
+    if (Array.isArray(rule.trigger_values) && rule.trigger_values.length > 0) {
+      
+      // A. KASUS OPERATOR (misal: >5000000 atau <1000)
+      if (cleanCat.startsWith('>') || cleanCat.startsWith('<') || cleanCat.startsWith('=')) {
+        const catOperator = cleanCat.charAt(0);
+        const catNum = parseFloat(cleanCat.substring(1).replace(/[^0-9.]/g, ''));
+        const valNum = parseFloat(String(rule.trigger_values[0]).replace(/[^0-9.]/g, ''));
+
+        // Jika operator di rule cocok ATAU nilai angkanya sama
+        if (!isNaN(catNum) && !isNaN(valNum) && catNum === valNum) {
+          if (rule.operator_qc && rule.operator_qc.trim() === catOperator) {
+            return true;
+          }
+          // Jika operator_qc bernilai IN/default tetapi nilainya identik
+          if (catNum === valNum) return true;
+        }
+      }
+
+      // B. KASUS RENTANG ANGKA (misal: "100000-1000000" atau "1-99999")
+      if (cleanCat.includes('-')) {
+        const parts = cleanCat.split('-').map(p => parseFloat(p.replace(/[^0-9.]/g, '')));
+        
+        // Jika trigger_values berisi 2 elemen [min, max]
+        if (rule.trigger_values.length === 2) {
+          const valMin = parseFloat(String(rule.trigger_values[0]).replace(/[^0-9.]/g, ''));
+          const valMax = parseFloat(String(rule.trigger_values[1]).replace(/[^0-9.]/g, ''));
+
+          if (!isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(valMin) && !isNaN(valMax)) {
+            if (parts[0] === valMin && parts[1] === valMax) {
+              return true; // COCOK RENTANG!
+            }
+          }
+        }
+      }
+
+      // C. KASUS DESIMAL / ANGKA TUNGGAL (misal: "0.00" vs "0")
+      const catAsNum = parseFloat(cleanCat.replace(/[^0-9.]/g, ''));
+      if (!isNaN(catAsNum) && !cleanCat.includes('-') && !cleanCat.startsWith('>') && !cleanCat.startsWith('<')) {
+        const isMatchNum = rule.trigger_values.some(val => {
+          const valAsNum = parseFloat(String(val).replace(/[^0-9.]/g, ''));
+          return !isNaN(valAsNum) && catAsNum === valAsNum;
+        });
+        if (isMatchNum) return true;
+      }
+
+      // D. PENGECEKAN REGULER (EXACT STRING MATCH)
       return rule.trigger_values.some(val => {
         if (val === undefined || val === null) return false;
-        
+
         const rawVal = String(val).trim().toLowerCase();
         const cleanVal = sanitizeTextForCheck(val);
 
-        // Pengecekan 1: Pembandingan Persis Teks Mentah
         if (rawCat === rawVal) return true;
-
-        // Pengecekan 2: Pembandingan Teks Bersih (Mengabaikan "7. ", Spasi, Simbol)
         if (cleanCat !== '' && cleanVal !== '' && cleanCat === cleanVal) return true;
-
-        // Pengecekan 3: Substring / Nilai Saling Mencakup
-        if (rawCat.includes(rawVal) || rawVal.includes(rawCat)) return true;
 
         return false;
       });
@@ -389,7 +429,7 @@ const isCategoryInRule = (category) => {
     }, 0);
   };
 
-  // HANDLE KLIK CELL UNTUK MEMBUKA MODAL DETAIL KK
+// HANDLE KLIK CELL UNTUK MEMBUKA MODAL DETAIL KK
   const handleCellClick = async (row, category, count) => {
     if (count === 0) return;
 
@@ -407,11 +447,13 @@ const isCategoryInRule = (category) => {
     setModalLoading(true);
 
     try {
+      // 💡 PERBAIKAN: Kirim p_kdkec agar pencarian desa mengunci kecamatan yang sedang aktif
       const { data, error } = await supabaseData.rpc('get_detail_rt_tabulasi', {
         p_kolom: selectedKolom,
         p_kategori: category,
         p_kode_wilayah: row.kode_wilayah,
-        p_level_wilayah: row.level_wilayah
+        p_level_wilayah: row.level_wilayah,
+        p_kdkec: currentKec.code // <-- Tambahkan baris ini
       });
 
       if (error) throw error;
@@ -599,7 +641,7 @@ const isCategoryInRule = (category) => {
                                 title={`Kategori "${formatHeaderKategori(cat)}" sudah masuk dalam Aturan QC`}
                               >
                                 <Check className="w-2.5 h-2.5 text-emerald-600" />
-                                <span>Sudah Ada</span>
+                                <span>Masuk Pengecekan</span>
                               </span>
                             ) : (
                               <button
