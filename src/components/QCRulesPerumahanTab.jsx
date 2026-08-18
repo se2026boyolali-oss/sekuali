@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabaseData } from '../lib/supabase';
-import { Plus, Trash2, RefreshCw, AlertTriangle, ShieldCheck, Filter } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, AlertTriangle, ShieldCheck, Filter, Layers } from 'lucide-react';
 
 export default function QCRulesPerumahanTab({ onRuleChange }) {
   const [loading, setLoading] = useState(false);
@@ -15,7 +15,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReevaluating, setIsReevaluating] = useState(false);
 
-  // 💡 State Filter Indikator pada Daftar Aturan ('ALL' untuk semua)
+  // State Filter Indikator pada Daftar Aturan ('ALL' untuk semua)
   const [filterKolom, setFilterKolom] = useState('ALL');
 
   // Fetch Master Kolom Khusus Modul PERUMAHAN
@@ -88,8 +88,8 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
 
     setIsSubmitting(true);
     
-    // Jika operator IS_NULL, triggerValues dikosongkan
-    const valuesArray = operator === 'IS_NULL' 
+    // Jika operator IS_NULL atau GROUP_INCONSISTENT, triggerValues dikosongkan
+    const valuesArray = (operator === 'IS_NULL' || operator === 'GROUP_INCONSISTENT')
       ? [] 
       : triggerValues.split(',').map(v => v.trim()).filter(Boolean);
 
@@ -139,7 +139,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
     }
   };
 
-  // 💡 Filter daftar aturan berdasarkan pilihan indikator
+  // Filter daftar aturan berdasarkan pilihan indikator
   const filteredRules = ruleList.filter(rule => {
     if (filterKolom === 'ALL') return true;
     return rule.target_column === filterKolom;
@@ -180,7 +180,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
             <input 
               type="text" 
               required 
-              placeholder="Contoh: Dinding bambu/kayu perlu kroscek"
+              placeholder="Contoh: Beda Sumber Penerangan Dalam 1 Bangunan"
               value={ruleName}
               onChange={(e) => setRuleName(e.target.value)}
               className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 focus:outline-none"
@@ -215,6 +215,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
               <option value="<">Kurang Dari (&lt;)</option>
               <option value="LIKE">Mirip Teks (LIKE)</option>
               <option value="IS_NULL">Kosong / NULL</option>
+              <option value="GROUP_INCONSISTENT">Beda Isian Dalam No. Bangunan Sama</option>
             </select>
           </div>
 
@@ -222,10 +223,16 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
             <label className="block text-xs font-bold text-slate-600 mb-1">Nilai Pemicu (Pisahkan Koma)</label>
             <input 
               type="text" 
-              required={operator !== 'IS_NULL'}
-              disabled={operator === 'IS_NULL'}
-              placeholder={operator === 'IS_NULL' ? 'Tidak memerlukan nilai' : 'Contoh: Bambu, Kayu, Anyaman'}
-              value={operator === 'IS_NULL' ? '' : triggerValues}
+              required={operator !== 'IS_NULL' && operator !== 'GROUP_INCONSISTENT'}
+              disabled={operator === 'IS_NULL' || operator === 'GROUP_INCONSISTENT'}
+              placeholder={
+                operator === 'GROUP_INCONSISTENT' 
+                  ? 'Otomatis mengecek perbedaan nilai antar-KK di bangunan sama' 
+                  : operator === 'IS_NULL' 
+                  ? 'Tidak memerlukan nilai' 
+                  : 'Contoh: Bambu, Kayu, Anyaman'
+              }
+              value={(operator === 'IS_NULL' || operator === 'GROUP_INCONSISTENT') ? '' : triggerValues}
               onChange={(e) => setTriggerValues(e.target.value)}
               className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
             />
@@ -253,7 +260,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
             </span>
           </h2>
 
-          {/* 💡 DROPDOWN FILTER INDIKATOR */}
+          {/* DROPDOWN FILTER INDIKATOR */}
           <div className="flex items-center gap-2">
             <Filter className="w-3.5 h-3.5 text-slate-500" />
             <label className="text-xs font-bold text-slate-600 whitespace-nowrap">Filter Indikator:</label>
@@ -293,7 +300,11 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
                     Target: <span className="font-mono font-bold text-slate-700">{rule.target_column}</span> | Tipe: <span className="font-mono text-slate-600">{rule.value_type}</span> | Operator: <span className="font-bold text-orange-600">{rule.operator}</span>
                   </p>
                   <div className="flex flex-wrap gap-1 pt-1">
-                    {Array.isArray(rule.trigger_values) && rule.trigger_values.length > 0 ? (
+                    {rule.operator === 'GROUP_INCONSISTENT' ? (
+                      <span className="bg-purple-100 text-purple-900 text-[10px] font-bold px-2 py-0.5 rounded-md border border-purple-200 flex items-center gap-1">
+                        <Layers className="w-3 h-3" /> Pengecekan Beda Isian Per Bangunan
+                      </span>
+                    ) : Array.isArray(rule.trigger_values) && rule.trigger_values.length > 0 ? (
                       rule.trigger_values.map((v, i) => (
                         <span key={i} className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md border border-amber-200">
                           {v}
