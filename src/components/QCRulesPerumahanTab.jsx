@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabaseData } from '../lib/supabase';
-import { Plus, Trash2, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, AlertTriangle, ShieldCheck, Filter } from 'lucide-react';
 
 export default function QCRulesPerumahanTab({ onRuleChange }) {
   const [loading, setLoading] = useState(false);
@@ -14,6 +14,9 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
   const [triggerValues, setTriggerValues] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReevaluating, setIsReevaluating] = useState(false);
+
+  // 💡 State Filter Indikator pada Daftar Aturan ('ALL' untuk semua)
+  const [filterKolom, setFilterKolom] = useState('ALL');
 
   // Fetch Master Kolom Khusus Modul PERUMAHAN
   const fetchKolom = async () => {
@@ -136,6 +139,12 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
     }
   };
 
+  // 💡 Filter daftar aturan berdasarkan pilihan indikator
+  const filteredRules = ruleList.filter(rule => {
+    if (filterKolom === 'ALL') return true;
+    return rule.target_column === filterKolom;
+  });
+
   return (
     <div className="space-y-6">
       
@@ -234,19 +243,46 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
         </form>
       </section>
 
-      {/* DAFTAR ATURAN */}
+      {/* DAFTAR ATURAN DENGAN FILTER INDIKATOR */}
       <section className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-4">
-        <h2 className="text-sm font-bold text-slate-900">Daftar Aturan QC Perumahan Aktif ({ruleList.length})</h2>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <span>Daftar Aturan QC Perumahan Aktif</span>
+            <span className="bg-orange-100 text-orange-800 text-[11px] px-2 py-0.5 rounded-full font-mono">
+              {filteredRules.length} dari {ruleList.length} aturan
+            </span>
+          </h2>
+
+          {/* 💡 DROPDOWN FILTER INDIKATOR */}
+          <div className="flex items-center gap-2">
+            <Filter className="w-3.5 h-3.5 text-slate-500" />
+            <label className="text-xs font-bold text-slate-600 whitespace-nowrap">Filter Indikator:</label>
+            <select
+              value={filterKolom}
+              onChange={(e) => setFilterKolom(e.target.value)}
+              className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+            >
+              <option value="ALL">-- Tampilkan Semua Indikator --</option>
+              {kolomList.map(col => (
+                <option key={col.kolom_id} value={col.nama_kolom_db}>
+                  {col.label_tampilan}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {loading ? (
           <div className="py-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2 font-bold">
             <RefreshCw className="w-4 h-4 animate-spin text-orange-500" /> Memuat Aturan...
           </div>
-        ) : ruleList.length === 0 ? (
-          <p className="text-xs text-slate-400 italic py-4 text-center">Belum ada aturan QC yang diseting untuk modul Perumahan.</p>
+        ) : filteredRules.length === 0 ? (
+          <p className="text-xs text-slate-400 italic py-8 text-center">
+            {ruleList.length === 0 ? "Belum ada aturan QC yang diseting untuk modul Perumahan." : "Tidak ada aturan yang cocok dengan filter indikator ini."}
+          </p>
         ) : (
           <div className="space-y-3">
-            {ruleList.map(rule => (
+            {filteredRules.map(rule => (
               <div key={rule.rule_id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center gap-4 hover:border-orange-200 transition-colors">
                 <div className="space-y-1">
                   <h3 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
