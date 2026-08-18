@@ -167,7 +167,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
 
         <form onSubmit={handleAddRule} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Nama Aturan / Pemicu Anomali</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">Nama Aturan </label>
             <input 
               type="text" 
               required 

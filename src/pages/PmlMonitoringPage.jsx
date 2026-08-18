@@ -572,7 +572,7 @@ export default function PmlMonitoringPage() {
                 {groupedTasks.length === 0 ? (
                   <div className="bg-emerald-50 border border-emerald-200 p-12 rounded-3xl text-center space-y-3">
                     <CheckCircle2 className="w-14 h-14 text-emerald-600 mx-auto" />
-                    <h3 className="font-extrabold text-base text-emerald-900">Tidak Ada Anomali Ditemukan!</h3>
+                    <h3 className="font-extrabold text-base text-emerald-900">Tidak Ada Yang Harus Dicek!</h3>
                     <p className="text-xs text-emerald-700 max-w-md mx-auto">
                       Seluruh data hasil sensus pada lokasi ini bersih dan tervalidasi.
                     </p>

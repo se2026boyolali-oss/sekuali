@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import Papa from 'papaparse';
 import QCRulesPerumahanTab from '../components/QCRulesPerumahanTab';
 import TabulasiPerumahanTab from '../components/TabulasiPerumahanTab';
+import RekapAnomaliPetugasTab from '../components/RekapAnomaliPetugasTab';
 import { 
-  Settings, ShieldAlert, Upload, 
+  Settings, ShieldAlert, Upload, Users,
   Sliders, Database, LogOut, CheckCircle2, FileSpreadsheet, AlertCircle, BarChart2, Edit3, Trash2
 } from 'lucide-react';
 
@@ -257,6 +258,17 @@ export default function AdminDashboardPage() {
           >
             <BarChart2 className="w-4 h-4" /> Tabulasi Hasil Pendataan
           </button>
+
+          <button
+            onClick={() => setActiveTab('REKAP_PETUGAS')}
+            className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
+              activeTab === 'REKAP_PETUGAS' 
+                ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users className="w-4 h-4" /> Rekap Pengecekan Petugas
+          </button>
           <button
             onClick={() => setActiveTab('RULES')}
             className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
@@ -265,7 +277,7 @@ export default function AdminDashboardPage() {
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            <ShieldAlert className="w-4 h-4" /> Aturan QC Anomali
+            <ShieldAlert className="w-4 h-4" /> Aturan QC Pengecekan
           </button>
 
           <button
@@ -510,7 +522,7 @@ export default function AdminDashboardPage() {
             </section>
           </div>
         )}
-
+{activeTab === 'REKAP_PETUGAS' && <RekapAnomaliPetugasTab />}
         {/* TAB 4: TABULASI PROPORSI SENSUS */}
         {activeTab === 'TABULASI' && <TabulasiPerumahanTab />}
       </main>

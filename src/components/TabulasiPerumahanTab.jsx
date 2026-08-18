@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabaseData } from '../lib/supabase';
-import { RefreshCw, ChevronRight, Home, BarChart2, X, Users, MapPin, Building, Search, AlertTriangle, Check, Sliders } from 'lucide-react';
+import { 
+  RefreshCw, ChevronRight, Home, BarChart2, X, 
+  Users, MapPin, Building, Search, AlertTriangle, 
+  Check, Sliders, ExternalLink 
+} from 'lucide-react';
 
 export default function TabulasiPerumahanTab({ onRuleAdded }) {
   const [loading, setLoading] = useState(false);
@@ -48,16 +52,14 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
     return num.toLocaleString('id-ID');
   };
 
-  // HELPER FORMAT HEADER KATEGORI (MENDUKUNG ANGKA TUNGGAL ATAU RENTANG MISAL "100000 - 500000")
+  // HELPER FORMAT HEADER KATEGORI
   const formatHeaderKategori = (catText) => {
     const text = String(catText || '').trim();
 
-    // 1. Jika berupa angka murni (misal: "700000" -> "700.000")
     if (/^[0-9.]+$/.test(text)) {
       return formatAngka(text);
     }
 
-    // 2. Jika berupa rentang (misal: "250000 - 500000" -> "250.000 - 500.000")
     if (/^[0-9.]+\s*-\s*[0-9.]+$/.test(text)) {
       const parts = text.split('-').map(p => p.trim());
       if (parts.length === 2) {
@@ -65,13 +67,11 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
       }
     }
 
-    // 3. Jika operator perbandingan (misal: ">= 50000" atau "> 50000")
     const matchOp = text.match(/^(>=|<=|>|<|=)\s*([0-9.]+)$/);
     if (matchOp) {
       return `${matchOp[1]} ${formatAngka(matchOp[2])}`;
     }
 
-    // Default: kembalikan teks asli (misal: "Bambu", "Seng", dll)
     return text;
   };
 
@@ -183,16 +183,73 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
     }
   }, [selectedKolom, currentKec.code, currentDesa.code]);
 
-  // Fungsi Cek Apakah Kategori Sudah Ada di Aturan QC
-  const isCategoryInRule = (category) => {
-    return activeRules.some(rule => {
-      if (rule.target_column !== selectedKolom) return false;
-      if (Array.isArray(rule.trigger_values)) {
-        return rule.trigger_values.includes(category);
+// 1. HELPER SANITASI TEKS UNIVERSAL
+// Menghapus nomor urut di awal (misal "1. ", "01. "), titik ribuan, simbol khusus, dan spasi
+const sanitizeText = (str) => {
+  if (!str) return '';
+  return String(str)
+    .toLowerCase()
+    .replace(/^[0-9]+\.\s*/, '') // Hapus nomor urut di depan teks (contoh: "1. Bambu" -> "bambu")
+    .replace(/\./g, '')          // Hapus pemisah titik (contoh: "300.000" -> "300000")
+    .replace(/[^a-z0-9]/g, '');  // Hapus semua simbol & spasi (hanya menyisakan huruf & angka murni)
+};
+
+// 2. FUNGSI CEK ATURAN QC UNIVERSAL (TEKS PANJANG & NUMERIK)
+const isCategoryInRule = (category) => {
+  if (!category) return false;
+
+  const cleanCat = sanitizeText(category);
+  const rawCatStr = String(category).trim().toLowerCase();
+  const { operator: detectedOp } = detectOperatorAndValue(category);
+
+  return activeRules.some(rule => {
+    // Pastikan kolom target sama persis
+    if (rule.target_column !== selectedKolom) return false;
+
+    if (!Array.isArray(rule.trigger_values) || rule.trigger_values.length === 0) return false;
+
+    // A. PEMBANDINGAN UNTUK RENTANG NUMERIK (BETWEEN)
+    if (rule.operator === 'BETWEEN' || detectedOp === 'BETWEEN') {
+      const matches = String(category).match(/[0-9.]+/g);
+      if (matches && matches.length >= 2) {
+        const val1 = sanitizeText(matches[0]);
+        const val2 = sanitizeText(matches[1]);
+
+        const ruleVal1 = sanitizeText(rule.trigger_values[0]);
+        const ruleVal2 = sanitizeText(rule.trigger_values[1]);
+
+        if (val1 === ruleVal1 && val2 === ruleVal2) return true;
       }
+    }
+
+    // B. PEMBANDINGAN UNTUK OPERATOR PERBANDINGAN (>, >=, <, <=, =)
+    const rawRuleJoined = sanitizeText(rule.trigger_values.join(''));
+    const rawRuleWithOp = sanitizeText(`${rule.operator}${rule.trigger_values[0]}`);
+
+    if (cleanCat === rawRuleJoined || cleanCat === rawRuleWithOp) {
+      return true;
+    }
+
+    // C. PEMBANDINGAN UNTUK TEKS / KATA-KATA PANJANG & STRING BIASA (IN / EQUALS)
+    return rule.trigger_values.some(val => {
+      const cleanRuleVal = sanitizeText(val);
+      const rawRuleVal = String(val).trim().toLowerCase();
+
+      // Pengecekan 1: Cocok persis setelah pembersihan total simbol & nomor urut
+      if (cleanCat === cleanRuleVal) return true;
+
+      // Pengecekan 2: Saling mencakup (substring match) pada teks asli
+      if (rawCatStr.includes(rawRuleVal) || rawRuleVal.includes(rawCatStr)) return true;
+
+      // Pengecekan 3: Saling mencakup pada teks bersih
+      if (cleanCat.length > 2 && cleanRuleVal.length > 2) {
+        if (cleanCat.includes(cleanRuleVal) || cleanRuleVal.includes(cleanCat)) return true;
+      }
+
       return false;
     });
-  };
+  });
+};
 
   // Handle Klik Wilayah untuk Drill-down
   const handleWilayahClick = (row) => {
@@ -251,7 +308,7 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
     }
   };
 
-  // BUKA MODAL TAMBAH ATURAN ANOMALI (DENGAN DETEKSI OPERATOR)
+  // BUKA MODAL TAMBAH ATURAN ANOMALI
   const handleOpenRuleModal = (e, category) => {
     e.stopPropagation();
     if (isCategoryInRule(category)) return;
@@ -418,7 +475,6 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                     return (
                       <th key={idx} className="p-3 border-r border-slate-200 min-w-[150px] group relative hover:bg-slate-200/70 transition-colors">
                         <div className="flex flex-col items-center justify-between gap-1.5 text-center h-full">
-                          {/* 🔥 Memanggil formatHeaderKategori agar angka/rentang di header ikut bertitik ribuan */}
                           <span className="break-words line-clamp-2">{formatHeaderKategori(cat)}</span>
                           
                           {alreadyAdded ? (
@@ -534,14 +590,14 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
         )}
       </section>
 
-      {/* MODAL DETAIL DAFTAR KK */}
+      {/* MODAL DETAIL DAFTAR KK DENGAN TOMBOL LIHAT FASIH */}
       {isModalOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
           onClick={() => setIsModalOpen(false)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-slate-900 text-white p-4 flex justify-between items-start shrink-0">
@@ -598,6 +654,8 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                         <th className="p-2.5">No. Bangunan & Jenis</th>
                         <th className="p-2.5">Satuan SLS / Dusun</th>
                         <th className="p-2.5 text-center">Isi Indikator</th>
+                        {/* 🚀 KOLOM BARU UNTUK TAUTAN FASIH */}
+                        <th className="p-2.5 text-center w-28">Aksi FASIH</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
@@ -622,6 +680,24 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                             <span className="bg-sky-100 text-sky-900 text-[11px] font-extrabold px-2.5 py-1 rounded-lg border border-sky-200 inline-block font-mono">
                               {formatAngka(item.nilai_indikator)}
                             </span>
+                          </td>
+                          
+                          {/* 🚀 TOMBOL LIHAT FASIH */}
+                          <td className="p-2.5 text-center">
+                            {item.assignment_id ? (
+                              <a
+                                href={`https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${item.assignment_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[10px] px-2.5 py-1.2 rounded-lg transition-all shadow-2xs hover:shadow-xs"
+                                title="Buka Dokumen Hasil Sensus di Aplikasi FASIH"
+                              >
+                                <span>Lihat FASIH</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-bold italic">-</span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -671,8 +747,6 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
               </div>
 
               <div className="p-5 space-y-4 text-xs font-medium">
-                
-                {/* RINGKASAN VARIABEL */}
                 <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-200 space-y-2">
                   <div>
                     <span className="text-slate-500 text-[10px] uppercase font-bold block">Indikator Target:</span>
@@ -686,7 +760,6 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                   </div>
                 </div>
 
-                {/* DROPDOWN OPERATOR QC */}
                 <div className="space-y-1.5">
                   <label className="font-bold text-slate-700 flex items-center gap-1.5">
                     <Sliders className="w-3.5 h-3.5 text-amber-600" /> Operator Perbandingan QC:
@@ -706,7 +779,6 @@ export default function TabulasiPerumahanTab({ onRuleAdded }) {
                   </select>
                 </div>
 
-                {/* CATATAN / REASON */}
                 <div className="space-y-1.5">
                   <label className="font-bold text-slate-700 block">
                     Keterangan / Catatan Aturan Anomali:
