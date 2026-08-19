@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabaseData } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import Papa from 'papaparse';
 import QCRulesPerumahanTab from '../components/QCRulesPerumahanTab';
-// 💡 PERUBAHAN: Import komponen generik (reusable)
 import TabulasiMatrixTab from '../components/TabulasiMatrixTab';
 import RekapAnomaliPetugasTab from '../components/RekapAnomaliPetugasTab';
 import { 
   Settings, ShieldAlert, Upload, Users,
-  Sliders, Database, LogOut, CheckCircle2, FileSpreadsheet, AlertCircle, BarChart2, Edit3, Trash2
+  Sliders, Database, LogOut, CheckCircle2, FileSpreadsheet, AlertCircle, BarChart2, Edit3, Trash2, RefreshCw
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -16,14 +15,15 @@ export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState('TABULASI');
   const [selectedModul, setSelectedModul] = useState('PERUMAHAN'); 
 
-  // Pengecekan Hak Akses Admin
+  // Hak Akses Admin
   const isAdmin = profile?.role?.toLowerCase() === 'admin' || profile?.tipe_akun === 'KANTOR_ADMIN';
 
-  // State Data Master
+  // State Master Data
   const [modulList, setModulList] = useState([]);
   const [kolomList, setKolomList] = useState([]);
+  const [isFetchingKolom, setIsFetchingKolom] = useState(false);
 
-  // State Form Kolom Baru / Edit
+  // State Form Kolom
   const [editingKolomId, setEditingKolomId] = useState(null);
   const [namaKolomDb, setNamaKolomDb] = useState('');
   const [labelTampilan, setLabelTampilan] = useState('');
@@ -37,34 +37,76 @@ export default function AdminDashboardPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState(null);
 
-  // Fetch Modul Sektor
-  const fetchModul = async () => {
-    const { data, error } = await supabaseData.from('master_modul_qc').select('*');
-    if (error) console.error("Gagal ambil modul:", error.message);
-    setModulList(data || []);
-  };
+  // =========================================================================
+  // CACHING LAYER
+  // =========================================================================
+  
+  const fetchModul = useCallback(async (forceRefresh = false) => {
+    const cacheKey = 'sibulak_master_modul';
+    const cachedData = localStorage.getItem(cacheKey);
 
-  // Fetch Kolom DB Berdasarkan Modul
-  const fetchKolom = async () => {
+    if (!forceRefresh && cachedData) {
+      setModulList(JSON.parse(cachedData));
+      return;
+    }
+
+    const { data, error } = await supabaseData.from('master_modul_qc').select('*');
+    if (error) {
+      console.error("Gagal ambil modul:", error.message);
+      return;
+    }
+
+    if (data) {
+      setModulList(data);
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+    }
+  }, []);
+
+  const fetchKolom = useCallback(async (forceRefresh = false) => {
+    const cacheKey = `sibulak_master_kolom_${selectedModul}`;
+    const cachedData = localStorage.getItem(cacheKey);
+
+    if (!forceRefresh && cachedData) {
+      setKolomList(JSON.parse(cachedData));
+      return;
+    }
+
+    setIsFetchingKolom(true);
     const { data, error } = await supabaseData
       .from('master_kolom_qc')
       .select('*')
       .eq('modul_id', selectedModul)
       .order('kolom_id', { ascending: true });
-    
-    if (error) console.error("Gagal ambil master kolom:", error.message);
-    setKolomList(data || []);
-  };
+
+    setIsFetchingKolom(false);
+
+    if (error) {
+      console.error("Gagal ambil master kolom:", error.message);
+      return;
+    }
+
+    if (data) {
+      setKolomList(data);
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+    }
+  }, [selectedModul]);
 
   useEffect(() => {
     fetchModul();
-  }, []);
+  }, [fetchModul]);
 
   useEffect(() => {
     fetchKolom();
-  }, [selectedModul]);
+  }, [selectedModul, fetchKolom]);
 
-  // Handler Simpan / Update Kolom
+  const invalidateCache = () => {
+    localStorage.removeItem(`sibulak_master_kolom_${selectedModul}`);
+    fetchKolom(true);
+  };
+
+  // =========================================================================
+  // HANDLER FORM KOLOM
+  // =========================================================================
   const handleSaveKolom = async (e) => {
     e.preventDefault();
     if (!namaKolomDb.trim() || !labelTampilan.trim()) return;
@@ -75,7 +117,7 @@ export default function AdminDashboardPage() {
       nama_kolom_db: namaKolomDb.trim(),
       label_tampilan: labelTampilan.trim(),
       tipe_data: tipeDataKolom,
-      range_config: tipeDataKolom === 'NUMBER' ? rangeConfig.trim() : null,
+      range_config: tipeDataKolom === 'NUMBER' || tipeDataKolom === 'GROUP' ? rangeConfig.trim() : null,
       is_active: true
     };
 
@@ -92,7 +134,7 @@ export default function AdminDashboardPage() {
       alert("Gagal menyimpan kolom: " + error.message);
     } else {
       resetKolomForm();
-      fetchKolom();
+      invalidateCache();
     }
     setIsSubmitting(false);
   };
@@ -118,26 +160,36 @@ export default function AdminDashboardPage() {
       .from('master_kolom_qc')
       .update({ is_active: !currentStatus })
       .eq('kolom_id', kolomId);
-    fetchKolom();
+    invalidateCache();
   };
 
   const handleDeleteKolom = async (kolomId) => {
     if (!confirm("Hapus pengaturan kolom ini?")) return;
     await supabaseData.from('master_kolom_qc').delete().eq('kolom_id', kolomId);
-    fetchKolom();
+    invalidateCache();
   };
 
-  // Helper Pembersih Teks CSV (Contoh: "01. Leding" -> "Leding")
-  const cleanValue = (val) => {
-    if (typeof val === 'string') {
-      let cleaned = val.trim();
-      return cleaned.replace(/^\d+[\.\s\-]+\s*/, '').trim();
-    }
-    return val;
-  };
+// Fungsi pembersih karakter umum
+const cleanValue = (val) => {
+  if (typeof val === 'string') {
+    let cleaned = val.trim();
+    return cleaned.replace(/^\d+[\.\s\-]+\s*/, '').trim();
+  }
+  return val;
+};
+
+// Fungsi khusus pembersih format mata uang / angka
+const cleanNumericValue = (val) => {
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'number') return val;
+  
+  // Hapus "Rp", titik, spasi, dan karakter non-digit lainnya
+  const cleaned = String(val).replace(/[^0-9]/g, '');
+  return cleaned ? Number(cleaned) : null;
+};
 
   // =========================================================================
-  // HANDLER PROCESS UPLOAD CSV (TERHUBUNG KE SEMUA MODUL: PERUMAHAN & INDIVIDU)
+  // OPTIMIZED BATCH CSV UPLOAD
   // =========================================================================
   const handleProcessCsvUpload = (e) => {
     e.preventDefault();
@@ -147,13 +199,12 @@ export default function AdminDashboardPage() {
     setUploadProgress(0);
     setUploadStatus(null);
 
-    // 1. Tentukan Tabel Target & Unique Conflict Keys
     let targetTable = 'assignments';
     let conflictKeys = 'assignment_id';
 
     if (selectedModul === 'INDIVIDU') {
       targetTable = 'assignments_individu';
-      conflictKeys = 'assignment_id, index1'; // Composite Key untuk Modul INDIVIDU
+      conflictKeys = 'assignment_id, index1';
     } else if (selectedModul === 'USAHA') {
       targetTable = 'assignments_usaha';
       conflictKeys = 'assignment_id, no_usaha';
@@ -172,32 +223,32 @@ export default function AdminDashboardPage() {
         }
 
         try {
-          // 2. Pembersihan Data (Sanitasi)
-          const cleanedRows = rawRows.map(row => {
-            const processedRow = {};
-            
-            Object.keys(row).forEach(key => {
-              const cleanKey = key.trim();
-              if (cleanKey === 'assignment_id') {
-                processedRow[cleanKey] = String(row[key] || '').trim();
-              } else if (cleanKey === 'index1') {
-                processedRow[cleanKey] = Number(row[key]) || 1; // Pastikan Angka/Integer
-              } else {
-                processedRow[cleanKey] = cleanValue(row[key]);
-              }
-            });
+const cleanedRows = rawRows.map(row => {
+  const processedRow = {};
+  Object.keys(row).forEach(key => {
+    const cleanKey = key.trim();
+    
+    if (cleanKey === 'assignment_id') {
+      processedRow[cleanKey] = String(row[key] || '').trim();
+    } else if (cleanKey === 'index1') {
+      processedRow[cleanKey] = Number(row[key]) || 1;
+    } else if (cleanKey === 'nilai_pend_pekerjaan' || cleanKey.includes('gaji') || cleanKey.includes('pendapatan')) {
+      // Clean khusus kolom gaji/pendapatan agar menjadi ANGKA MURNI (integer)
+      processedRow[cleanKey] = cleanNumericValue(row[key]);
+    } else {
+      processedRow[cleanKey] = cleanValue(row[key]);
+    }
+  });
+  return processedRow;
+});
 
-            return processedRow;
-          });
-
-          // 3. Batch Insert / Upsert (Per 100 Baris)
-          const BATCH_SIZE = 100;
+          // Processing dengan Batch Size 200 Baris
+          const BATCH_SIZE = 200;
           const totalRows = cleanedRows.length;
           let insertedCount = 0;
 
           for (let i = 0; i < totalRows; i += BATCH_SIZE) {
             const batch = cleanedRows.slice(i, i + BATCH_SIZE);
-            
             const { error } = await supabaseData.from(targetTable).upsert(batch, {
               onConflict: conflictKeys
             });
@@ -208,16 +259,19 @@ export default function AdminDashboardPage() {
             setUploadProgress(Math.round((insertedCount / totalRows) * 100));
           }
 
-          // 4. Jalankan Re-Evaluasi QC Otomatis Pasca Upsert
+          // Trigger Re-evaluasi Terarah Spesifik Modul Target
           try {
-            await supabaseData.rpc('reevaluate_all_assignments');
+            await supabaseData.rpc('reevaluate_all_assignments', {
+              p_table_name: targetTable,
+              p_modul_id: selectedModul
+            });
           } catch (evalErr) {
-            console.warn("Re-evaluasi QC timeout / warning:", evalErr);
+            console.warn("Re-evaluasi QC warning:", evalErr);
           }
 
           setUploadStatus({ 
             type: 'success', 
-            message: `Berhasil mengimpor / mengupdate ${insertedCount} data pada tabel [${targetTable}]!` 
+            message: `Berhasil mengimpor & mengevaluasi ${insertedCount} data [Modul: ${selectedModul}]!` 
           });
           setCsvFile(null);
         } catch (err) {
@@ -347,28 +401,17 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* CONTENT VIEW TABULASI */}
-        {/* 💡 PERUBAHAN: Masukkan props selectedModul */}
         {activeTab === 'TABULASI' && <TabulasiMatrixTab selectedModul={selectedModul} />}
 
         {/* CONTENT VIEW REKAP PETUGAS */}
-        {/* 💡 PERUBAHAN: Masukkan props selectedModul */}
         {activeTab === 'REKAP_PETUGAS' && <RekapAnomaliPetugasTab selectedModul={selectedModul} />}
 
         {/* KONTEN TERKUNCI KHUSUS ADMIN */}
         {isAdmin && (
           <>
-            {/* TAB RULES */}
+            {/* TAB RULES (Sudah mendukung modul PERUMAHAN, INDIVIDU, & USAHA secara dinamis) */}
             {activeTab === 'RULES' && (
-              // 💡 PERUBAHAN: Tambahkan prop modul ke komponen Rules Perumahan
-              selectedModul === 'PERUMAHAN' ? (
-                <QCRulesPerumahanTab selectedModul={selectedModul} />
-              ) : (
-                <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-2">
-                  <ShieldAlert className="w-10 h-10 text-slate-300 mx-auto" />
-                  <h3 className="font-bold text-slate-700 text-sm">Modul [{selectedModul}] Dalam Pengembangan</h3>
-                  <p className="text-xs text-slate-400">Komponen Aturan QC Cross-Column untuk sektor ini dapat dibuat terpisah nanti.</p>
-                </div>
-              )
+              <QCRulesPerumahanTab selectedModul={selectedModul} />
             )}
 
             {/* TAB PENGATURAN KOLOM */}
@@ -454,7 +497,15 @@ export default function AdminDashboardPage() {
                 </section>
 
                 <section className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-4">
-                  <h2 className="text-sm font-bold text-slate-900">Daftar Kolom Terdaftar [{selectedModul}]</h2>
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-sm font-bold text-slate-900">Daftar Kolom Terdaftar [{selectedModul}]</h2>
+                    <button 
+                      onClick={() => fetchKolom(true)}
+                      className="text-xs font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isFetchingKolom ? 'animate-spin' : ''}`} /> Refresh Data
+                    </button>
+                  </div>
 
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
@@ -520,7 +571,7 @@ export default function AdminDashboardPage() {
                       <h2 className="text-sm font-bold text-slate-900">Import File CSV Data Hasil Sensus [{selectedModul}]</h2>
                       <p className="text-xs text-slate-500">
                         {selectedModul === 'INDIVIDU' 
-                          ? 'Unggah CSV Bagian 1 atau Bagian 2 Individu. Data akan otomatis di-merge berdasarkan (assignment_id + index1).' 
+                          ? 'Unggah CSV Individu. Data di-merge berdasarkan (assignment_id + index1).' 
                           : 'Unggah file CSV hasil pendataan. Data akan otomatis dievaluasi dengan aturan QC aktif.'}
                       </p>
                     </div>
@@ -549,7 +600,7 @@ export default function AdminDashboardPage() {
                     {uploading && (
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-xs font-bold text-slate-600">
-                          <span>Mengunggah Data...</span>
+                          <span>Mengunggah & Evaluasi QC Modul [{selectedModul}]...</span>
                           <span>{uploadProgress}%</span>
                         </div>
                         <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">

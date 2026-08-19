@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabaseData } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -7,73 +7,59 @@ import {
   Check, Sliders, ExternalLink 
 } from 'lucide-react';
 
-// 🚀 DICTIONARY NOMOR URUT PATEN SENSUS PER INDIKATOR
 // MASTER DICTIONARY NOMOR URUT PATEN BERDASARKAN KUESIONER
 const MASTER_KODE_MAP = {
-  // 6a. Bahan Bangunan Utama Lantai
   jns_lantai_label: {
     'marmer/granit': { no: 1, label: '1. Marmer/granit' },
     'keramik': { no: 2, label: '2. Keramik' },
-    'Parket/vinil/permadani': { no: 3, label: '3. Parket/vinil/karpet' },
+    'parket/vinil/permadani': { no: 3, label: '3. Parket/vinil/karpet' },
     'ubin/tegel/teraso': { no: 4, label: '4. Ubin/tegel/teraso' },
-    'ubin/tegel/traso': { no: 4, label: '4. Ubin/tegel/teraso' }, // variasi penulisan
+    'ubin/tegel/traso': { no: 4, label: '4. Ubin/tegel/teraso' },
     'kayu/papan': { no: 5, label: '5. Kayu/papan' },
     'semen/bata merah': { no: 6, label: '6. Semen/bata merah' },
     'bambu': { no: 7, label: '7. Bambu' },
     'tanah': { no: 8, label: '8. Tanah' },
     'lainnya': { no: 9, label: '9. Lainnya' }
   },
-
-  // 6b. Kondisi Lantai
   kondisi_lantai_label: {
     'baik': { no: 1, label: '1. Baik' },
     'rusak ringan': { no: 2, label: '2. Rusak Ringan' },
     'rusak sedang': { no: 3, label: '3. Rusak Sedang' },
     'rusak berat': { no: 4, label: '4. Rusak Berat' }
   },
-
-  // 7a. Bahan Bangunan Utama Dinding
   jns_dinding_label: {
     'tembok': { no: 1, label: '1. Tembok' },
     'plesteran anyaman bambu/kawat': { no: 2, label: '2. Plesteran anyaman bambu/kawat' },
     'kayu/papan/gipsum/grc/calciboard': { no: 3, label: '3. Kayu/papan/gipsum/GRC/calciboard' },
-    'kayu/papan': { no: 3, label: '3. Kayu/papan/gipsum/GRC/calciboard' }, // alias sederhana jika di DB tersimpan kayu/papan
+    'kayu/papan': { no: 3, label: '3. Kayu/papan/gipsum/GRC/calciboard' },
     'anyaman bambu': { no: 4, label: '4. Anyaman bambu' },
     'batang kayu': { no: 5, label: '5. Batang kayu' },
     'bambu': { no: 6, label: '6. Bambu' },
     'lainnya': { no: 7, label: '7. Lainnya' }
   },
-
-  // 7b. Kondisi Dinding
   kondisi_dinding_label: {
     'baik': { no: 1, label: '1. Baik' },
     'rusak ringan': { no: 2, label: '2. Rusak Ringan' },
     'rusak sedang': { no: 3, label: '3. Rusak Sedang' },
     'rusak berat': { no: 4, label: '4. Rusak Berat' }
   },
-
-  // 8a. Bahan Bangunan Utama Atap
   jns_atap_label: {
     'beton': { no: 1, label: '1. Beton' },
-    'genteng': { no: 2, label: ' Genteng' },
+    'genteng': { no: 2, label: '2. Genteng' },
     'seng': { no: 3, label: '3. Seng' },
     'asbes': { no: 4, label: '4. Asbes' },
     'bambu': { no: 5, label: '5. Bambu' },
     'kayu/sirap': { no: 6, label: '6. Kayu/sirap' },
-    'Jerami/ijuk/daun daunan/rumbia': { no: 7, label: '7. Jerami/ijuk/daun-daunan/rumbia' },
-    'ijuk/rumbia/daun': { no: 7, label: '7. Jerami/ijuk/daun-daunan/rumbia' }, // alias
+    'jerami/ijuk/daun daunan/rumbia': { no: 7, label: '7. Jerami/ijuk/daun-daunan/rumbia' },
+    'ijuk/rumbia/daun': { no: 7, label: '7. Jerami/ijuk/daun-daunan/rumbia' },
     'lainnya': { no: 8, label: '8. Lainnya' }
   },
-
-  // 8b. Kondisi Atap
   kondisi_atap_label: {
     'baik': { no: 1, label: '1. Baik' },
     'rusak ringan': { no: 2, label: '2. Rusak Ringan' },
     'rusak sedang': { no: 3, label: '3. Rusak Sedang' },
     'rusak berat': { no: 4, label: '4. Rusak Berat' }
   },
-
-  // 9. Fasilitas Tempat Buang Air Besar
   fasilitas_bab_label: {
     'ada, digunakan oleh anggota keluarga dalam satu rumah': { no: 1, label: '1. Ada, digunakan oleh anggota keluarga dalam satu rumah' },
     'ada, digunakan bersama oleh anggota keluarga dari beberapa rumah': { no: 2, label: '2. Ada, digunakan bersama oleh anggota keluarga dari beberapa rumah' },
@@ -82,28 +68,21 @@ const MASTER_KODE_MAP = {
     'ada, anggota keluarga tidak menggunakan': { no: 5, label: '5. Ada, anggota keluarga tidak menggunakan' },
     'tidak ada': { no: 6, label: '6. Tidak ada' }
   },
-
-  // 10. Jenis Kloset
   jns_closet_label: {
     'leher angsa': { no: 1, label: '1. Leher angsa' },
     'plengsengan dengan tutup': { no: 2, label: '2. Plengsengan dengan tutup' },
     'plengsengan tanpa tutup': { no: 3, label: '3. Plengsengan tanpa tutup' },
-    'plengsengan': { no: 2, label: '2. Plengsengan' }, // alias
+    'plengsengan': { no: 2, label: '2. Plengsengan' },
     'cemplung/cubluk': { no: 4, label: '4. Cemplung/cubluk' }
   },
-
-  // 11. Tempat Pembuangan Akhir Tinja
   buang_tinja_label: {
     'tangki septik': { no: 1, label: '1. Tangki septik' },
-    'instalasi pengolahan air limbah (ipal)': { no: 2, label: '2. IPAL' },
-    'ipal': { no: 2, label: '2. IPAL' },
+    'instalasi pengolahan air limbah (ipal)': { no: 2, label: '2. Instalasi Pengolahan Air Limbah (IPAL)' },
     'kolam/sawah/sungai/danau/laut': { no: 3, label: '3. Kolam/sawah/sungai/danau/laut' },
     'lubang tanah': { no: 4, label: '4. Lubang tanah' },
     'pantai/tanah lapang/kebun': { no: 5, label: '5. Pantai/tanah lapang/kebun' },
     'lainnya': { no: 6, label: '6. Lainnya' }
   },
-
-  // 12. Sumber Air Utama Untuk Minum
   air_minum_label: {
     'air kemasan bermerk': { no: 1, label: '1. Air kemasan bermerek' },
     'air isi ulang': { no: 2, label: '2. Air isi ulang' },
@@ -118,8 +97,6 @@ const MASTER_KODE_MAP = {
     'air hujan': { no: 10, label: '10. Air hujan' },
     'lainnya': { no: 11, label: '11. Lainnya' }
   },
-
-  // 13. Sumber Penerangan Utama
   sumber_penerangan_label: {
     'listrik pln dengan meteran': { no: 1, label: '1. Listrik PLN dengan meteran' },
     'listrik pln tanpa meteran': { no: 2, label: '2. Listrik PLN tanpa meteran' },
@@ -128,7 +105,16 @@ const MASTER_KODE_MAP = {
   }
 };
 
-// HELPER PENCARIAN INFORMASI KODE PATEN
+// FORMAT ANGKA DENGAN PEMISAH RIBUAN UNTUK HEADER KATEGORI RANGE
+const formatNumbersInString = (text) => {
+  if (!text) return '';
+  // Format angka murni (minimal 1 digit) yang ada di string agar dipisah ribuan dengan titik (.)
+  return String(text).replace(/\b\d+\b/g, (match) => {
+    const num = Number(match);
+    return isNaN(num) ? match : num.toLocaleString('id-ID');
+  });
+};
+
 const getPatenCategoryInfo = (selectedKolom, catText) => {
   const rawText = String(catText || '').trim();
   const cleanKey = rawText.toLowerCase().replace(/^[0-9]+\.\s*/, '').trim();
@@ -138,31 +124,37 @@ const getPatenCategoryInfo = (selectedKolom, catText) => {
     return kolomMap[cleanKey];
   }
 
-  // Jika teks memang sudah diawali nomor urut di awal string
-  const matchOp = rawText.match(/^(\d+)/);
-  if (matchOp) {
-    return { no: parseInt(matchOp[1], 10), label: rawText };
+  // JIKA BERUPA KATEGORI RANGE GAJI / NUMBER
+  const formattedRangeText = formatNumbersInString(rawText);
+  const rangeMatch = rawText.match(/(\d+)/);
+  if (rangeMatch) {
+    return { no: parseInt(rangeMatch[1], 10), label: formattedRangeText };
   }
 
-  return { no: 9999, label: rawText };
+  return { no: 9999, label: formattedRangeText };
 };
 
-// 💡 PERUBAHAN: Nama komponen diubah menjadi generik, menerima prop selectedModul (default: PERUMAHAN)
+const sanitizeTextForCheck = (str) => {
+  if (str === undefined || str === null) return '';
+  return String(str)
+    .toLowerCase()
+    .replace(/^[0-9]+\.\s*/, '')
+    .replace(/\s+/g, '')
+    .trim();
+};
+
 export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleAdded }) {
   const { profile } = useAuth();
   const isAdmin = profile?.role?.toLowerCase() === 'admin' || profile?.tipe_akun === 'KANTOR_ADMIN';
   const [loading, setLoading] = useState(false);
 
-  // Filter Wilayah Active (Breadcrumb Navigation)
+  // Filter Wilayah
   const [currentKec, setCurrentKec] = useState({ code: null, name: '' });
   const [currentDesa, setCurrentDesa] = useState({ code: null, name: '' });
 
-  // Target Variabel
+  // Options & Rules State
   const [kolomOptions, setKolomOptions] = useState([]);
-  // 💡 PERUBAHAN: Nilai awal selectedKolom dikosongkan agar di-set secara dinamis saat fetchMasterKolom
   const [selectedKolom, setSelectedKolom] = useState('');
-
-  // Active Rules State (Untuk mengecek aturan yang sudah ada)
   const [activeRules, setActiveRules] = useState([]);
 
   // Matrix Data State
@@ -170,14 +162,14 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
   const [matrixData, setMatrixData] = useState([]);
   const [grandTotal, setGrandTotal] = useState(0);
 
-  // State Modal Detail Sel KK
+  // Modal Detail State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalTitleInfo, setModalTitleInfo] = useState({ wilayah: '', kategori: '', count: 0 });
   const [detailList, setDetailList] = useState([]);
   const [searchFilter, setSearchFilter] = useState('');
 
-  // State Modal Tambah Aturan QC Anomali
+  // Modal Rule State
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [savingRule, setSavingRule] = useState(false);
   const [ruleData, setRuleData] = useState({ 
@@ -189,52 +181,38 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
   });
   const [toastMessage, setToastMessage] = useState(null);
 
-  // HELPER FORMAT ANGKA RIBUAN INDONESIA
+  // PARSER FORMAT ANGKA & GAJI RUPIAH
   const formatAngka = (val) => {
     if (val === null || val === undefined || val === '') return '-';
-    const num = Number(val);
+    const cleanStr = String(val).replace(/[^0-9.-]/g, '');
+    const num = Number(cleanStr);
     if (isNaN(num)) return val;
-    return num.toLocaleString('id-ID');
+    return `Rp ${num.toLocaleString('id-ID')}`;
   };
 
-  // HELPER FORMAT HEADER KATEGORI SESUAI PATEN
   const formatHeaderKategori = (catText) => {
     const info = getPatenCategoryInfo(selectedKolom, catText);
     return info.label;
   };
 
-  // HELPER DETEKSI OPERATOR DARI TEKS KATEGORI
+  // LOGIKA DETEKSI OPERATOR RANGE
   const detectOperatorAndValue = (catText) => {
     const text = String(catText || '').trim();
-
-    if (/^[0-9.]+\s*-\s*[0-9.]+$/.test(text)) {
-      return { operator: 'BETWEEN' };
-    }
-    if (/^>=\s*[0-9.]+$/.test(text)) {
-      return { operator: '>=' };
-    }
-    if (/^>\s*[0-9.]+$/.test(text)) {
-      return { operator: '>' };
-    }
-    if (/^<=\s*[0-9.]+$/.test(text)) {
-      return { operator: '<=' };
-    }
-    if (/^<\s*[0-9.]+$/.test(text)) {
-      return { operator: '<' };
-    }
-    if (/^=\s*[0-9.]+$/.test(text)) {
-      return { operator: '=' };
-    }
+    if (text.includes('-') || /\d+\s*s\/d\s*\d+/i.test(text)) return { operator: 'BETWEEN' };
+    if (text.startsWith('>=') || text.includes('ke atas') || text.includes('lebih dari sama')) return { operator: '>=' };
+    if (text.startsWith('>') || text.includes('lebih dari')) return { operator: '>' };
+    if (text.startsWith('<=') || text.includes('ke bawah')) return { operator: '<=' };
+    if (text.startsWith('<') || text.includes('kurang dari')) return { operator: '<' };
+    if (text.startsWith('=')) return { operator: '=' };
     return { operator: 'IN' };
   };
 
   // 1. Fetch Master Kolom
-  const fetchMasterKolom = async () => {
+  const fetchMasterKolom = useCallback(async () => {
     try {
       const { data, error } = await supabaseData
         .from('master_kolom_qc')
         .select('nama_kolom_db, label_tampilan, tipe_data')
-        // 💡 PERUBAHAN: Gunakan variabel selectedModul
         .eq('modul_id', selectedModul)
         .eq('is_active', true);
 
@@ -242,24 +220,21 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
 
       setKolomOptions(data || []);
       if (data && data.length > 0) {
-        // 💡 PERUBAHAN: Set default kolom ke elemen pertama hasil fetch
         setSelectedKolom(data[0].nama_kolom_db);
       } else {
-        // 💡 PERUBAHAN: Jika tidak ada kolom, kosongkan selectedKolom
         setSelectedKolom('');
       }
     } catch (err) {
       console.error("Gagal memuat master kolom:", err.message);
     }
-  };
+  }, [selectedModul]);
 
   // 2. Fetch Aturan QC Aktif
-  const fetchActiveRules = async () => {
+  const fetchActiveRules = useCallback(async () => {
     try {
       const { data, error } = await supabaseData
         .from('rule_configurations')
         .select('*')
-        // 💡 PERUBAHAN: Gunakan variabel selectedModul
         .eq('modul_id', selectedModul)
         .eq('is_active', true);
 
@@ -268,26 +243,28 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     } catch (err) {
       console.error("Gagal memuat aturan aktif:", err.message);
     }
-  };
+  }, [selectedModul]);
 
-  // 💡 PERUBAHAN: Reset navigasi wilayah dan fetch ulang master data saat selectedModul berubah
+  const resetToKabupaten = useCallback(() => {
+    setCurrentKec({ code: null, name: '' });
+    setCurrentDesa({ code: null, name: '' });
+  }, []);
+
   useEffect(() => {
-    resetToKabupaten(); // Reset wilayah ke kabupaten saat modul ganti
+    resetToKabupaten();
     fetchMasterKolom();
     fetchActiveRules();
-  }, [selectedModul]); // <-- Trigger saat prop selectedModul berubah
+  }, [selectedModul, resetToKabupaten, fetchMasterKolom, fetchActiveRules]);
 
   // 3. Fetch Matrix Tabulasi
-  const fetchMatrixTabulasi = async () => {
-    // 💡 PERUBAHAN: Jangan fetch jika selectedKolom kosong
+  const fetchMatrixTabulasi = useCallback(async () => {
     if (!selectedKolom) return;
 
     setLoading(true);
     try {
-      // 💡 PERUBAHAN: Tambahkan parameter p_modul_id ke RPC
       const { data, error } = await supabaseData.rpc('get_tabulasi_matrix', {
+        p_modul_id: selectedModul,
         p_kolom: selectedKolom,
-        p_modul_id: selectedModul, // <-- Kirim modul_id ke backend
         p_kdkec: currentKec.code,
         p_kddesa: currentDesa.code
       });
@@ -305,7 +282,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
         }
       });
 
-      // 💡 URUTKAN KATEGORI PATEN BERDASARKAN NOMOR KODE DI DICTIONARY (1 -> 2 -> 3 ...)
       const uniqueCategories = Array.from(catSet).sort((a, b) => {
         const infoA = getPatenCategoryInfo(selectedKolom, a);
         const infoB = getPatenCategoryInfo(selectedKolom, b);
@@ -325,103 +301,48 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedKolom, selectedModul, currentKec.code, currentDesa.code]);
 
   useEffect(() => {
     if (selectedKolom) {
       fetchMatrixTabulasi();
     }
-  }, [selectedKolom, currentKec.code, currentDesa.code]);
+  }, [selectedKolom, currentKec.code, currentDesa.code, fetchMatrixTabulasi]);
 
-// 1. HELPER SANITASI TEKS UNIVERSAL
-// Menghapus nomor urut di awal (misal "7. ", "07. "), titik, garis miring, dan simbol khusus
-// 1. Fungsi sanitasi teks
-// 1. Sanitasi Teks
-// 1. Fungsi Sanitasi Teks
-const sanitizeTextForCheck = (str) => {
-  if (str === undefined || str === null) return '';
-  return String(str)
-    .toLowerCase()
-    .replace(/^[0-9]+\.\s*/, '') // Hapus nomor urut di depan teks ("1. Keramik" -> "keramik")
-    .replace(/\s+/g, '')         // Hapus semua spasi
-    .trim();
-};
+  // PRESISI PENGECEKAN ATURAN QC
+  const isCategoryInRule = useCallback((category) => {
+    if (category === undefined || category === null) return false;
 
-// 2. Fungsi Cek Aturan QC Universal
-const isCategoryInRule = (category) => {
-  if (category === undefined || category === null) return false;
+    const rawCat = String(category).trim().toLowerCase();
+    const cleanCat = sanitizeTextForCheck(category);
+    const patenInfo = getPatenCategoryInfo(selectedKolom, category);
 
-  const rawCat = String(category).trim().toLowerCase();
-  const cleanCat = sanitizeTextForCheck(category);
+    return activeRules.some(rule => {
+      if (rule.target_column !== selectedKolom) return false;
 
-  return activeRules.some(rule => {
-    // 1. Pastikan kolom target sama
-    if (rule.target_column !== selectedKolom) return false;
+      if (Array.isArray(rule.trigger_values) && rule.trigger_values.length > 0) {
+        return rule.trigger_values.some(val => {
+          if (val === undefined || val === null) return false;
 
-    if (Array.isArray(rule.trigger_values) && rule.trigger_values.length > 0) {
-      
-      // A. KASUS OPERATOR (misal: >5000000 atau <1000)
-      if (cleanCat.startsWith('>') || cleanCat.startsWith('<') || cleanCat.startsWith('=')) {
-        const catOperator = cleanCat.charAt(0);
-        const catNum = parseFloat(cleanCat.substring(1).replace(/[^0-9.]/g, ''));
-        const valNum = parseFloat(String(rule.trigger_values[0]).replace(/[^0-9.]/g, ''));
+          const rawVal = String(val).trim().toLowerCase();
+          const cleanVal = sanitizeTextForCheck(val);
 
-        // Jika operator di rule cocok ATAU nilai angkanya sama
-        if (!isNaN(catNum) && !isNaN(valNum) && catNum === valNum) {
-          if (rule.operator_qc && rule.operator_qc.trim() === catOperator) {
+          if (rawCat === rawVal) return true;
+          if (cleanCat !== '' && cleanVal !== '' && cleanCat === cleanVal) return true;
+
+          const valAsNum = parseInt(rawVal.replace(/[^0-9]/g, ''), 10);
+          if (!isNaN(valAsNum) && patenInfo.no !== 9999 && patenInfo.no === valAsNum) {
             return true;
           }
-          // Jika operator_qc bernilai IN/default tetapi nilainya identik
-          if (catNum === valNum) return true;
-        }
-      }
 
-      // B. KASUS RENTANG ANGKA (misal: "100000-1000000" atau "1-99999")
-      if (cleanCat.includes('-')) {
-        const parts = cleanCat.split('-').map(p => parseFloat(p.replace(/[^0-9.]/g, '')));
-        
-        // Jika trigger_values berisi 2 elemen [min, max]
-        if (rule.trigger_values.length === 2) {
-          const valMin = parseFloat(String(rule.trigger_values[0]).replace(/[^0-9.]/g, ''));
-          const valMax = parseFloat(String(rule.trigger_values[1]).replace(/[^0-9.]/g, ''));
-
-          if (!isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(valMin) && !isNaN(valMax)) {
-            if (parts[0] === valMin && parts[1] === valMax) {
-              return true; // COCOK RENTANG!
-            }
-          }
-        }
-      }
-
-      // C. KASUS DESIMAL / ANGKA TUNGGAL (misal: "0.00" vs "0")
-      const catAsNum = parseFloat(cleanCat.replace(/[^0-9.]/g, ''));
-      if (!isNaN(catAsNum) && !cleanCat.includes('-') && !cleanCat.startsWith('>') && !cleanCat.startsWith('<')) {
-        const isMatchNum = rule.trigger_values.some(val => {
-          const valAsNum = parseFloat(String(val).replace(/[^0-9.]/g, ''));
-          return !isNaN(valAsNum) && catAsNum === valAsNum;
+          return false;
         });
-        if (isMatchNum) return true;
       }
 
-      // D. PENGECEKAN REGULER (EXACT STRING MATCH)
-      return rule.trigger_values.some(val => {
-        if (val === undefined || val === null) return false;
+      return false;
+    });
+  }, [selectedKolom, activeRules]);
 
-        const rawVal = String(val).trim().toLowerCase();
-        const cleanVal = sanitizeTextForCheck(val);
-
-        if (rawCat === rawVal) return true;
-        if (cleanCat !== '' && cleanVal !== '' && cleanCat === cleanVal) return true;
-
-        return false;
-      });
-    }
-
-    return false;
-  });
-};
-
-  // Handle Klik Wilayah untuk Drill-down
   const handleWilayahClick = (row) => {
     if (row.level_wilayah === 'KECAMATAN') {
       setCurrentKec({ code: row.kode_wilayah, name: row.nama_wilayah });
@@ -430,13 +351,6 @@ const isCategoryInRule = (category) => {
     }
   };
 
-  // Reset Navigasi Ke Level Kabupaten
-  const resetToKabupaten = () => {
-    setCurrentKec({ code: null, name: '' });
-    setCurrentDesa({ code: null, name: '' });
-  };
-
-  // Hitung Total Per Kategori
   const calculateCategoryTotal = (category) => {
     return matrixData.reduce((acc, row) => {
       const count = Number((row.breakdown && row.breakdown[category]) || 0);
@@ -444,44 +358,51 @@ const isCategoryInRule = (category) => {
     }, 0);
   };
 
-// HANDLE KLIK CELL UNTUK MEMBUKA MODAL DETAIL KK
-  const handleCellClick = async (row, category, count) => {
-    if (count === 0) return;
+const handleCellClick = useCallback(async (row, category, count) => {
+  // 1. Validasi awal
+  if (!count || count === 0 || !row) return;
 
-    const activeKolomObj = kolomOptions.find(k => k.nama_kolom_db === selectedKolom);
-    const labelKolom = activeKolomObj ? activeKolomObj.label_tampilan : selectedKolom;
+  // 2. Normalisasi string category agar tidak null/undefined/object
+  const safeCategory = typeof category === 'object' 
+    ? String(category.label || category.no || '') 
+    : String(category ?? '');
 
-    setModalTitleInfo({
-      wilayah: row.nama_wilayah,
-      kategori: `${labelKolom}: "${formatHeaderKategori(category)}"`,
-      count: count
+  const activeKolomObj = kolomOptions?.find(k => k.nama_kolom_db === selectedKolom);
+  const labelKolom = activeKolomObj ? activeKolomObj.label_tampilan : selectedKolom;
+
+  setModalTitleInfo({
+    wilayah: row.nama_wilayah || 'Wilayah',
+    kategori: `${labelKolom}: "${formatHeaderKategori(safeCategory)}"`,
+    count: count
+  });
+  
+  setSearchFilter('');
+  setDetailList([]);
+  setIsModalOpen(true);
+  setModalLoading(true);
+
+  try {
+    // 3. Panggil Stored Procedure Supabase
+    const { data, error } = await supabaseData.rpc('get_detail_rt_tabulasi', {
+      p_modul_id: selectedModul,
+      p_kolom: selectedKolom,
+      p_kategori: safeCategory, // Kategori murni tanpa format angka tampilan
+      p_kode_wilayah: row.kode_wilayah,
+      p_level_wilayah: row.level_wilayah,
+      p_kdkec: currentKec.code 
     });
-    setSearchFilter('');
-    setDetailList([]);
-    setIsModalOpen(true);
-    setModalLoading(true);
 
-    try {
-      // 💡 PERBAIKAN: RPC get_detail_rt_tabulasi juga perlu p_modul_id agar mencari ke tabel data yang benar
-      const { data, error } = await supabaseData.rpc('get_detail_rt_tabulasi', {
-        p_kolom: selectedKolom,
-        p_modul_id: selectedModul, // <-- Tambahkan parameter modul
-        p_kategori: category,
-        p_kode_wilayah: row.kode_wilayah,
-        p_level_wilayah: row.level_wilayah,
-        p_kdkec: currentKec.code 
-      });
+    if (error) throw error;
+    setDetailList(data || []);
 
-      if (error) throw error;
-      setDetailList(data || []);
-    } catch (err) {
-      console.error("Gagal memuat detail daftar RT:", err.message);
-    } finally {
-      setModalLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error("Gagal memuat detail daftar RT:", err.message);
+    alert("Gagal memuat detail data: " + err.message);
+  } finally {
+    setModalLoading(false);
+  }
+}, [selectedKolom, selectedModul, currentKec.code, kolomOptions, formatHeaderKategori]);
 
-  // BUKA MODAL TAMBAH ATURAN ANOMALI
   const handleOpenRuleModal = (e, category) => {
     e.stopPropagation();
     if (isCategoryInRule(category)) return;
@@ -500,19 +421,18 @@ const isCategoryInRule = (category) => {
     setIsRuleModalOpen(true);
   };
 
-  // SIMPAN ATURAN QC KE DATABASE
   const handleSaveRule = async (e) => {
     e.preventDefault();
     if (!ruleData.keterangan.trim()) return;
 
     setSavingRule(true);
     try {
-      // 💡 RPC backend save_rule_qc sudah generik menggunakan p_kolom yang terdaftar di master_kolom_qc yang difilter berdasarkan modul_id, jadi fungsi ini tetap sama
       const { error } = await supabaseData.rpc('save_rule_qc', {
         p_kolom: ruleData.kolom,
         p_kategori: ruleData.kategori,
         p_keterangan: ruleData.keterangan,
-        p_operator: ruleData.operator
+        p_operator: ruleData.operator,
+        p_modul_id: selectedModul
       });
 
       if (error) throw error;
@@ -525,7 +445,11 @@ const isCategoryInRule = (category) => {
         onRuleAdded();
       }
 
-      await supabaseData.rpc('reevaluate_all_assignments');
+      let targetTable = selectedModul === 'INDIVIDU' ? 'assignments_individu' : selectedModul === 'USAHA' ? 'assignments_usaha' : 'assignments';
+      await supabaseData.rpc('reevaluate_all_assignments', {
+        p_table_name: targetTable,
+        p_modul_id: selectedModul
+      });
 
     } catch (err) {
       console.error("Gagal menyimpan aturan QC:", err.message);
@@ -540,15 +464,18 @@ const isCategoryInRule = (category) => {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const filteredDetailList = detailList.filter(item => 
-    item.nama_kk?.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    item.no_bang?.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    item.level_5_name?.toLowerCase().includes(searchFilter.toLowerCase())
-  );
+  const filteredDetailList = useMemo(() => {
+    if (!searchFilter.trim()) return detailList;
+    const query = searchFilter.toLowerCase();
+    return detailList.filter(item => 
+      item.nama_kk?.toLowerCase().includes(query) ||
+      item.no_bang?.toLowerCase().includes(query) ||
+      item.level_5_name?.toLowerCase().includes(query)
+    );
+  }, [detailList, searchFilter]);
 
   return (
     <div className="space-y-6 relative">
-      
       {/* TOAST NOTIFIKASI */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-bold animate-in slide-in-from-top-4 duration-200">
@@ -562,7 +489,7 @@ const isCategoryInRule = (category) => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-sky-600" /> Profil & Tabulasi Silang Wilayah
+              <BarChart2 className="w-4 h-4 text-sky-600" /> Profil & Tabulasi Silang Wilayah [{selectedModul}]
             </h2>
             <p className="text-xs text-slate-500">
               Klik ikon <span className="font-bold text-amber-600">+ Rule QC</span> di header tabel untuk menjadikan kategori tersebut sebagai Aturan Anomali.
@@ -586,7 +513,7 @@ const isCategoryInRule = (category) => {
           </div>
         </div>
 
-        {/* BREADCRUMB HIRARKI NAVIGASI */}
+        {/* BREADCRUMB NAVIGASI */}
         <div className="flex items-center gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 font-medium overflow-x-auto">
           <button
             onClick={resetToKabupaten}
@@ -625,7 +552,7 @@ const isCategoryInRule = (category) => {
             </span>
           </div>
           <div className="text-xs font-bold text-slate-700">
-            Total Sampel Wilayah: <span className="text-sky-600 font-mono font-black">{grandTotal.toLocaleString('id-ID')} RT</span>
+            Total: <span className="text-sky-600 font-mono font-black">{grandTotal.toLocaleString('id-ID')} KK</span>
           </div>
         </div>
 
@@ -779,7 +706,7 @@ const isCategoryInRule = (category) => {
             <div className="bg-slate-900 text-white p-4 flex justify-between items-start shrink-0">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sky-400 font-bold text-xs">
-                  <Users className="w-4 h-4" /> DAFTAR RUMAH TANGGA / KK
+                  <Users className="w-4 h-4" /> DAFTAR RUMAH TANGGA / KK [{selectedModul}]
                 </div>
                 <h3 className="text-base font-black text-white">{modalTitleInfo.wilayah}</h3>
                 <p className="text-xs text-slate-300 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 inline-block font-medium">
@@ -889,7 +816,6 @@ const isCategoryInRule = (category) => {
                 Tutup Modal
               </button>
             </div>
-
           </div>
         </div>
       )}
@@ -908,7 +834,7 @@ const isCategoryInRule = (category) => {
               <div className="bg-amber-500 text-white p-4 flex justify-between items-center">
                 <div className="flex items-center gap-2 font-bold text-sm">
                   <AlertTriangle className="w-5 h-5 text-amber-100" />
-                  <span>Tambah Aturan Anomali QC</span>
+                  <span>Tambah Aturan Anomali QC [{selectedModul}]</span>
                 </div>
                 <button 
                   type="button"

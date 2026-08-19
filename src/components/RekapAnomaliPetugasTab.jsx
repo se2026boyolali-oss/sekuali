@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabaseData } from '../lib/supabase';
 import { 
   Users, ChevronRight, ChevronDown, MapPin, AlertTriangle, 
@@ -6,7 +6,7 @@ import {
   User, Home, Package, Info
 } from 'lucide-react';
 
-export default function RekapAnomaliPetugasTab() {
+export default function RekapAnomaliPetugasTab({ selectedModul = 'PERUMAHAN' }) {
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState([]);
   const [rules, setRules] = useState([]);
@@ -16,28 +16,36 @@ export default function RekapAnomaliPetugasTab() {
   const [expandedPml, setExpandedPml] = useState({});
 
   // State Modal List KK
-  const [selectedCellInfo, setSelectedCellInfo] = useState(null); // { pplName, rule, taskList: [] }
+  const [selectedCellInfo, setSelectedCellInfo] = useState(null);
 
-  // State Modal Detail Perumahan KK (Lazy Fetch)
+  // State Modal Detail KK (Lazy Fetch)
   const [selectedKkDetail, setSelectedKkDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   // Filter pencarian di dalam modal
   const [modalSearch, setModalSearch] = useState('');
 
-  // 1. Fetch Data dari view_pml_tasks & rule_configurations
-  const fetchData = async () => {
+// 1. Fetch Data Terfilter Berdasarkan Modul Aktif + Refresh Materialized View
+  const fetchData = useCallback(async (isManualRefresh = false) => {
     setLoading(true);
     try {
-      // Ambil daftar Aturan QC Aktif (Sertakan rule_type)
-      const { data: rulesData } = await supabaseData
+      // Jika diklik dari tombol Refresh, jalankan RPC Refresh Cache di Postgres dulu
+      if (isManualRefresh) {
+        await supabaseData.rpc('refresh_view_pml_tasks');
+      }
+
+      // Ambil daftar Aturan QC Aktif sesuai modul_id
+      const { data: rulesData, error: rulesErr } = await supabaseData
         .from('rule_configurations')
-        .select('rule_id, rule_name, target_column, rule_type, operator')
+        .select('rule_id, rule_name, target_column, rule_type, operator, modul_id')
+        .eq('modul_id', selectedModul)
         .eq('is_active', true)
         .order('rule_id', { ascending: true });
+
+      if (rulesErr) throw rulesErr;
       setRules(rulesData || []);
 
-      // Ambil Data Anomali dari View pml_tasks versi baru
+      // Ambil Data Anomali dari Materialized View view_pml_tasks
       const { data: tasksData, error: tasksErr } = await supabaseData
         .from('view_pml_tasks')
         .select(`
@@ -45,7 +53,8 @@ export default function RekapAnomaliPetugasTab() {
           pml_notes, rule_name, target_column, modul_id, rule_type, operator_qc,
           level_6_full_code, kdkec, kddesa, nama_kec, nama_desa, nama_pml, 
           nama_ppl, no_bang, nama_kk, value_found, idsubsls, nama_sls
-        `);
+        `)
+        .eq('modul_id', selectedModul);
 
       if (tasksErr) throw tasksErr;
       setTasks(tasksData || []);
@@ -55,11 +64,11 @@ export default function RekapAnomaliPetugasTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedModul]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   // 2. Olah Data Hirarki (Kecamatan -> PML -> PPL -> Total Pending & Verified per Rule)
   const treeData = useMemo(() => {
@@ -69,7 +78,6 @@ export default function RekapAnomaliPetugasTab() {
 
     tasks.forEach(task => {
       const kec = task.nama_kec || 'KECAMATAN LAIN';
-      // Mengambil kdkec dengan fallback aman jika null dari view
       const kdkec = task.kdkec || (task.level_6_full_code ? task.level_6_full_code.substring(2, 5) : '999');
       const pml = task.nama_pml || 'TANPA PML';
       const ppl = task.nama_ppl || 'TANPA PPL';
@@ -113,7 +121,6 @@ export default function RekapAnomaliPetugasTab() {
             }
           });
 
-          // Akumulasi ke Level PML
           rules.forEach(r => {
             pmlObj.totals[r.rule_id].total += pplObj.totals[r.rule_id].total;
             pmlObj.totals[r.rule_id].pending += pplObj.totals[r.rule_id].pending;
@@ -123,7 +130,6 @@ export default function RekapAnomaliPetugasTab() {
           pmlObj.verifiedCount += pplObj.verifiedCount;
         });
 
-        // Akumulasi ke Level Kecamatan
         rules.forEach(r => {
           kecObj.totals[r.rule_id].total += pmlObj.totals[r.rule_id].total;
           kecObj.totals[r.rule_id].pending += pmlObj.totals[r.rule_id].pending;
@@ -134,11 +140,9 @@ export default function RekapAnomaliPetugasTab() {
       });
     });
 
-    // Urutkan daftar kecamatan berdasarkan kdkec secara ascending
     return Object.values(kecGroup).sort((a, b) => {
       const codeA = parseInt(a.kdkec, 10);
       const codeB = parseInt(b.kdkec, 10);
-
       if (!isNaN(codeA) && !isNaN(codeB)) {
         return codeA - codeB;
       }
@@ -146,7 +150,7 @@ export default function RekapAnomaliPetugasTab() {
     });
   }, [tasks, rules]);
 
-  // Grouping TaskList per SLS di dalam Modal List KK
+  // Grouping TaskList per SLS
   const slsGroupedTasks = useMemo(() => {
     if (!selectedCellInfo?.taskList) return [];
 
@@ -164,11 +168,7 @@ export default function RekapAnomaliPetugasTab() {
       const slsName = task.nama_sls || 'SLS / Sub-SLS Wilayah';
 
       if (!groups[slsKey]) {
-        groups[slsKey] = {
-          idsubsls: slsKey,
-          nama_sls: slsName,
-          items: []
-        };
+        groups[slsKey] = { idsubsls: slsKey, nama_sls: slsName, items: [] };
       }
       groups[slsKey].items.push(task);
     });
@@ -187,20 +187,24 @@ export default function RekapAnomaliPetugasTab() {
     return Object.values(groups);
   }, [selectedCellInfo, modalSearch]);
 
-  // Format pengelompokan data detail perumahan untuk Modal 2
+  // Format pengelompokan data detail secara dinamis
+// Format pengelompokan data detail secara dinamis
   const groupedKkDetail = useMemo(() => {
     if (!selectedKkDetail) return null;
 
     const identitasKeys = [
-      'assignment_id', 'nama_kk', 'nama_krt', 'level_5_name', 
-      'level_6_full_code', 'idsubsls', 'created_at', 'updated_at'
+      'assignment_id', 'nama_kk', 'nama_krt', 'nama_dtsen', 'nama_pemilik', 'nama_usaha',
+      'level_5_name', 'level_6_full_code', 'idsubsls', 'created_at', 'updated_at'
     ];
 
     const perumahanKeys = [
       'no_bang', 'kode_bang_label', 'status_kepemilikan_label', 'luas_lantai', 
       'biaya_sewa', 'jns_dinding_label', 'jns_lantai_label', 'jns_atap_label', 
       'jns_closet_label', 'buang_tinja_label', 'air_minum_label', 
-      'sumber_penerangan_label', 'jml_meteran'
+      'sumber_penerangan_label', 'jml_meteran',
+      // Kunci tambahan modul Usaha & Individu:
+      'kegiatan_usaha', 'omset_usaha', 'jumlah_tenaga_kerja', 'hubungan_label', 
+      'status_kawin_label', 'profesi_label'
     ];
 
     const asetKeys = [
@@ -217,21 +221,15 @@ export default function RekapAnomaliPetugasTab() {
     const lainnya = [];
 
     identitasKeys.forEach(key => {
-      if (key in selectedKkDetail) {
-        identitas.push([key, selectedKkDetail[key]]);
-      }
+      if (key in selectedKkDetail) identitas.push([key, selectedKkDetail[key]]);
     });
 
     perumahanKeys.forEach(key => {
-      if (key in selectedKkDetail) {
-        perumahan.push([key, selectedKkDetail[key]]);
-      }
+      if (key in selectedKkDetail) perumahan.push([key, selectedKkDetail[key]]);
     });
 
     asetKeys.forEach(key => {
-      if (key in selectedKkDetail) {
-        aset.push([key, selectedKkDetail[key]]);
-      }
+      if (key in selectedKkDetail) aset.push([key, selectedKkDetail[key]]);
     });
 
     Object.entries(selectedKkDetail).forEach(([key, value]) => {
@@ -268,11 +266,17 @@ export default function RekapAnomaliPetugasTab() {
     });
   };
 
+  // FETCH DINAMIS BERDASARKAN TARGET TABEL MODUL
   const handleFetchKkDetail = async (assignmentId) => {
     setLoadingDetail(true);
+    
+    let targetTable = 'assignments';
+    if (selectedModul === 'INDIVIDU') targetTable = 'assignments_individu';
+    if (selectedModul === 'USAHA') targetTable = 'assignments_usaha';
+
     try {
       const { data, error } = await supabaseData
-        .from('assignments')
+        .from(targetTable)
         .select('*')
         .eq('assignment_id', assignmentId)
         .single();
@@ -280,7 +284,7 @@ export default function RekapAnomaliPetugasTab() {
       if (error) throw error;
       setSelectedKkDetail(data);
     } catch (err) {
-      alert("Gagal memuat detail perumahan: " + err.message);
+      alert("Gagal memuat detail sampel: " + err.message);
     } finally {
       setLoadingDetail(false);
     }
@@ -297,7 +301,7 @@ export default function RekapAnomaliPetugasTab() {
     return (
       <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
         <RefreshCw className="w-8 h-8 text-sky-600 animate-spin mx-auto" />
-        <p className="text-xs font-bold text-slate-600">Memuat Rekapitulasi Petugas...</p>
+        <p className="text-xs font-bold text-slate-600">Memuat Rekapitulasi Petugas [{selectedModul}]...</p>
       </div>
     );
   }
@@ -309,15 +313,15 @@ export default function RekapAnomaliPetugasTab() {
         <div>
           <h2 className="text-sm font-black text-slate-900 flex items-center gap-2">
             <Users className="w-5 h-5 text-sky-600" />
-            Rekapitulasi Pengecekan Per Petugas (Kecamatan ➔ PML ➔ PPL)
+            Rekapitulasi Pengecekan Per Petugas [{selectedModul}] (Kecamatan ➔ PML ➔ PPL)
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Indikator: <span className="text-amber-600 font-bold">Pending (⏳)</span> / <span className="text-emerald-600 font-bold">Selesai (✅)</span>. Klik angka di sel untuk melihat rincian KK.
+            Indikator: <span className="text-amber-600 font-bold">Pending (⏳)</span> / <span className="text-emerald-600 font-bold">Selesai (✅)</span>. Klik angka di sel untuk melihat rincian sampel.
           </p>
         </div>
 
-        <button
-          onClick={fetchData}
+<button
+          onClick={() => fetchData(true)} // Mengirim flag manual refresh = true
           className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" /> Refresh Rekap
@@ -336,10 +340,9 @@ export default function RekapAnomaliPetugasTab() {
                     <div className="truncate max-w-[150px]" title={rule.rule_name}>
                       {rule.rule_name}
                     </div>
-                    {/* Display Fleksibel Target Column / Rule Type */}
                     <span className="text-[9px] text-sky-400 block font-normal font-mono mt-0.5">
                       {rule.target_column || (
-                        rule.rule_type === 'AGGREGATION' ? '[AGREGASI NO. BANG]' :
+                        rule.rule_type === 'AGGREGATION' ? '[AGREGASI]' :
                         rule.rule_type === 'CROSS_COLUMN' ? '[MULTI-KONDISI]' : '[LINTAS INDIKATOR]'
                       )}
                     </span>
@@ -507,7 +510,7 @@ export default function RekapAnomaliPetugasTab() {
                         <span className="text-[10px] text-sky-700 font-mono font-semibold">({slsGroup.idsubsls})</span>
                       </div>
                       <span className="text-[10px] bg-sky-200 text-sky-900 font-bold px-2 py-0.5 rounded-md">
-                        {slsGroup.items.length} KK
+                        {slsGroup.items.length} Sampel
                       </span>
                     </div>
 
@@ -582,14 +585,14 @@ export default function RekapAnomaliPetugasTab() {
         </div>
       )}
 
-      {/* MODAL 2: DETAIL PERUMAHAN LENGKAP */}
+      {/* MODAL 2: DETAIL SAMPEL LENGKAP */}
       {(loadingDetail || selectedKkDetail) && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
             {loadingDetail ? (
               <div className="p-12 text-center space-y-3">
                 <Loader2 className="w-8 h-8 text-sky-600 animate-spin mx-auto" />
-                <p className="text-xs font-bold text-slate-600">Memuat Isian Perumahan Keluarga...</p>
+                <p className="text-xs font-bold text-slate-600">Memuat Isian Sampel Modul [{selectedModul}]...</p>
               </div>
             ) : (
               <>
@@ -597,10 +600,12 @@ export default function RekapAnomaliPetugasTab() {
                   <div>
                     <h3 className="font-bold text-sm text-sky-300 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
-                      Detail Isian Kuesioner Perumahan
+                      Detail Isian Kuesioner Sampel [{selectedModul}]
                     </h3>
                     <p className="text-[11px] text-sky-100 mt-0.5">
-                      KK: <span className="font-bold text-white">{selectedKkDetail?.nama_kk || selectedKkDetail?.nama_krt || '-'}</span>
+                      Subjek: <span className="font-bold text-white">
+                        {selectedKkDetail?.nama_kk || selectedKkDetail?.nama_krt || selectedKkDetail?.nama_dtsen || selectedKkDetail?.nama_usaha || '-'}
+                      </span>
                     </p>
                   </div>
                   <button 
@@ -619,7 +624,7 @@ export default function RekapAnomaliPetugasTab() {
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
                           <h4 className="font-extrabold text-xs text-sky-900 flex items-center gap-2 border-b border-slate-100 pb-2 uppercase tracking-wide">
                             <User className="w-4 h-4 text-sky-600" />
-                            Identitas KK & Wilayah
+                            Identitas & Wilayah
                           </h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {groupedKkDetail.identitas.map(([key, value]) => (
@@ -636,12 +641,12 @@ export default function RekapAnomaliPetugasTab() {
                         </div>
                       )}
 
-                      {/* SECTION 2: PERUMAHAN */}
+                      {/* SECTION 2: PERUMAHAN / KARAKTERISTIK */}
                       {groupedKkDetail.perumahan.length > 0 && (
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
                           <h4 className="font-extrabold text-xs text-amber-900 flex items-center gap-2 border-b border-slate-100 pb-2 uppercase tracking-wide">
                             <Home className="w-4 h-4 text-amber-600" />
-                            Karakteristik Bangunan & Perumahan
+                            Karakteristik Utama
                           </h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {groupedKkDetail.perumahan.map(([key, value]) => (

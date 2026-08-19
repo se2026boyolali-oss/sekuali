@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabaseData } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { 
   Users, MapPin, AlertTriangle, CheckCircle2, 
   ArrowLeft, LogOut, Search,
-  Check, X, Layers, Edit3, HelpCircle
+  Check, X, Layers, Edit3, HelpCircle, RefreshCw
 } from 'lucide-react';
 
 export default function PmlMonitoringPage() {
@@ -35,22 +35,51 @@ export default function PmlMonitoringPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // 1. FETCH MASTER MODUL
-  const fetchModul = async () => {
+  const fetchModul = useCallback(async () => {
     try {
-      const { data, error } = await supabaseData.from('master_modul_qc').select('*');
+      const { data, error } = await supabaseData
+        .from('master_modul_qc')
+        .select('modul_id, nama_modul')
+        .order('modul_id', { ascending: true });
       if (error) throw error;
       setModulList(data || []);
     } catch (err) {
       console.error("Gagal memuat master modul:", err.message);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchModul();
-  }, []);
+  }, [fetchModul]);
 
-  // 2. AMBIL DAFTAR PCL DI BAWAH PENGAWASAN PML
-  const loadDaftarPcl = async (pmlEmail) => {
+  // 2. FALLBACK KECAMATAN
+  const loadTasksByKecamatan = useCallback(async (namaKecamatan) => {
+    setLoading(true);
+    try {
+      let query = supabaseData
+        .from('view_pml_tasks')
+        .select(`
+          confirmation_id, assignment_id, level_6_full_code, target_column,
+          status_konfirmasi, reason, pml_notes, rule_name, modul_id, 
+          nama_kec, nama_desa, nama_pml, nama_ppl, no_bang, nama_kk, value_found
+        `)
+        .eq('modul_id', selectedModul);
+
+      if (namaKecamatan) {
+        query = query.ilike('nama_kec', `%${namaKecamatan}%`);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      setRawTasks(data || []);
+    } catch (err) {
+      console.error("Gagal memuat tugas wilayah:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedModul]);
+
+  // 3. AMBIL DAFTAR PCL DI BAWAH PENGAWASAN PML (Egress-Optimized)
+  const loadDaftarPcl = useCallback(async (pmlEmail) => {
     setLoading(true);
     try {
       const { data: pclData, error: pclErr } = await supabaseData
@@ -68,23 +97,25 @@ export default function PmlMonitoringPage() {
 
       const pclEmails = pclData.map(p => p.email);
 
+      // Fetch relasi SLS milik PCL
       const { data: slsData } = await supabaseData
         .from('muatan_sls')
         .select('idsubsls, petugas_id')
         .in('petugas_id', pclEmails);
 
+      // Hanya tarik kolom minimal untuk kalkulasi counter rekap
       const { data: tasksData } = await supabaseData
         .from('view_pml_tasks')
-        .select('confirmation_id, assignment_id, level_6_full_code, status_konfirmasi, modul_id')
+        .select('assignment_id, idsubsls, status_konfirmasi')
         .eq('modul_id', selectedModul);
 
       const mappedPcl = pclData.map(pcl => {
         const slsOwns = slsData ? slsData.filter(s => s.petugas_id === pcl.email).map(s => String(s.idsubsls).trim()) : [];
-        const tasksOwns = tasksData ? tasksData.filter(t => slsOwns.some(slsId => t.level_6_full_code?.startsWith(slsId))) : [];
+        const tasksOwns = tasksData ? tasksData.filter(t => slsOwns.includes(String(t.idsubsls).trim())) : [];
 
-        const totalAssignments = new Set(tasksOwns.map(t => t.assignment_id || t.level_6_full_code)).size;
+        const totalAssignments = new Set(tasksOwns.map(t => t.assignment_id)).size;
         const pendingAssignmentIds = new Set(
-          tasksOwns.filter(t => t.status_konfirmasi === 'PENDING').map(t => t.assignment_id || t.level_6_full_code)
+          tasksOwns.filter(t => t.status_konfirmasi === 'PENDING').map(t => t.assignment_id)
         );
 
         const belumSelesai = pendingAssignmentIds.size;
@@ -108,10 +139,10 @@ export default function PmlMonitoringPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedModul, profilUser?.kecamatan_tugas, loadTasksByKecamatan]);
 
-  // 3. AMBIL DAFTAR SLS TUGAS PCL
-  const loadDaftarSls = async (pclEmail) => {
+  // 4. AMBIL DAFTAR SLS TUGAS PCL
+  const loadDaftarSls = useCallback(async (pclEmail) => {
     setLoading(true);
     try {
       const { data: slsData, error: slsErr } = await supabaseData
@@ -126,18 +157,21 @@ export default function PmlMonitoringPage() {
         return;
       }
 
+      const slsIds = slsData.map(s => String(s.idsubsls).trim());
+
       const { data: tasksData } = await supabaseData
         .from('view_pml_tasks')
-        .select('confirmation_id, assignment_id, level_6_full_code, status_konfirmasi')
-        .eq('modul_id', selectedModul);
+        .select('assignment_id, idsubsls, status_konfirmasi')
+        .eq('modul_id', selectedModul)
+        .in('idsubsls', slsIds);
 
       const mappedSls = slsData.map(sls => {
         const slsIdStr = String(sls.idsubsls).trim();
-        const tasksInSls = tasksData ? tasksData.filter(t => t.level_6_full_code?.startsWith(slsIdStr)) : [];
+        const tasksInSls = tasksData ? tasksData.filter(t => String(t.idsubsls).trim() === slsIdStr) : [];
 
-        const totalAssignments = new Set(tasksInSls.map(t => t.assignment_id || t.level_6_full_code)).size;
+        const totalAssignments = new Set(tasksInSls.map(t => t.assignment_id)).size;
         const pendingAssignmentIds = new Set(
-          tasksInSls.filter(t => t.status_konfirmasi === 'PENDING').map(t => t.assignment_id || t.level_6_full_code)
+          tasksInSls.filter(t => t.status_konfirmasi === 'PENDING').map(t => t.assignment_id)
         );
 
         return {
@@ -154,41 +188,23 @@ export default function PmlMonitoringPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // 4. FALLBACK KECAMATAN
-  const loadTasksByKecamatan = async (namaKecamatan) => {
-    setLoading(true);
-    try {
-      let query = supabaseData
-        .from('view_pml_tasks')
-        .select('*')
-        .eq('modul_id', selectedModul);
-
-      if (namaKecamatan) {
-        query = query.ilike('level_5_name', `%${namaKecamatan}%`);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      setRawTasks(data || []);
-    } catch (err) {
-      console.error("Gagal memuat tugas wilayah:", err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [selectedModul]);
 
   // 5. DETAIL ANOMALI BERDASARKAN SLS
-  const loadDetailAnomaliSls = async (slsObj) => {
+  const loadDetailAnomaliSls = useCallback(async (slsObj) => {
     setSelectedSls(slsObj);
     setLoading(true);
     try {
-      const slsPrefix = String(slsObj.idsubsls).trim();
+      const slsIdStr = String(slsObj.idsubsls).trim();
       const { data, error } = await supabaseData
         .from('view_pml_tasks')
-        .select('*')
+        .select(`
+          confirmation_id, assignment_id, level_6_full_code, target_column,
+          status_konfirmasi, reason, pml_notes, rule_name, modul_id, 
+          nama_kec, nama_desa, nama_pml, nama_ppl, no_bang, nama_kk, value_found, idsubsls
+        `)
         .eq('modul_id', selectedModul)
-        .like('level_6_full_code', `${slsPrefix}%`);
+        .eq('idsubsls', slsIdStr);
 
       if (error) throw error;
       setRawTasks(data || []);
@@ -197,7 +213,7 @@ export default function PmlMonitoringPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedModul]);
 
   useEffect(() => {
     const emailUser = profilUser?.email;
@@ -213,31 +229,31 @@ export default function PmlMonitoringPage() {
     } else {
       loadTasksByKecamatan(null);
     }
-  }, [selectedModul, profilUser?.email]);
+  }, [selectedModul, profilUser?.email, selectedSls, selectedPcl, loadDetailAnomaliSls, loadDaftarSls, loadDaftarPcl, loadTasksByKecamatan]);
 
-  // LOGIKA 1: MENGELOMPOKKAN & MENGURUTKAN PER KK BERDASARKAN NO_BANG
+  // LOGIKA 1: MENGELOMPOKKAN PER KK BERDASARKAN NO_BANG
   const groupedTasks = useMemo(() => {
     if (!rawTasks || rawTasks.length === 0) return [];
 
     const groups = {};
 
     rawTasks.forEach(task => {
-      const groupKey = `${task.level_6_full_code}_${task.nama_kk || 'TANPA_NAMA'}`;
+      const groupKey = `${task.assignment_id || task.level_6_full_code}_${task.nama_kk || 'TANPA_NAMA'}`;
 
       if (!groups[groupKey]) {
         groups[groupKey] = {
           groupKey,
+          assignment_id: task.assignment_id,
           level_6_full_code: task.level_6_full_code,
           nama_kk: task.nama_kk,
           no_bang: task.no_bang || '',
-          level_5_name: task.level_5_name,
           anomalies: [],
-          fieldValues: {} // Menyimpan nilai variabel per kolom (p_kolom / target_column)
+          fieldValues: {}
         };
       }
 
-      const colName = task.target_column || task.p_kolom || 'anomali_umum';
-      const cellValue = task[colName] || task.value_found || task.reason || 'Perlu Konfirmasi';
+      const colName = task.target_column || 'anomali_umum';
+      const cellValue = task.value_found || task.reason || 'Perlu Konfirmasi';
 
       groups[groupKey].fieldValues[colName] = {
         value: cellValue,
@@ -257,7 +273,7 @@ export default function PmlMonitoringPage() {
 
     let result = Object.values(groups);
 
-    // Sort berdasarkan No Bangunan (Numerik/String)
+    // Sort berdasarkan No Bangunan (Numerik)
     result.sort((a, b) => {
       const numA = parseInt(a.no_bang, 10);
       const numB = parseInt(b.no_bang, 10);
@@ -287,15 +303,15 @@ export default function PmlMonitoringPage() {
     return result;
   }, [rawTasks, searchTerm, filterStatus]);
 
-  // LOGIKA 2: EKSTRAKSI DAFTAR KOLOM YANG MEMILIKI ANOMALI SECARA DINAMIS
+  // LOGIKA 2: EKSTRAKSI DAFTAR KOLOM YANG MEMILIKI ANOMALI
   const dynamicColumns = useMemo(() => {
     if (!rawTasks || rawTasks.length === 0) return [];
 
     const colMap = new Map();
 
     rawTasks.forEach(task => {
-      const colKey = task.target_column || task.p_kolom || 'anomali_umum';
-      const colLabel = task.column_label || task.kategori || colKey.replace(/_/g, ' ').toUpperCase();
+      const colKey = task.target_column || 'anomali_umum';
+      const colLabel = colKey.replace(/_/g, ' ').toUpperCase();
 
       if (!colMap.has(colKey)) {
         colMap.set(colKey, {
@@ -356,12 +372,11 @@ export default function PmlMonitoringPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 antialiased pb-24 sm:pb-12">
-      
       {/* HEADER NAVBAR */}
       <header className="bg-slate-900 text-white shadow-md sticky top-0 z-30">
         <div className="max-w mx-auto px-4 h-16 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            { (selectedPcl || selectedSls) && (
+            {(selectedPcl || selectedSls) && (
               <button 
                 onClick={handleKembali}
                 className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold border border-slate-700 flex items-center justify-center transition-all cursor-pointer"
@@ -416,7 +431,11 @@ export default function PmlMonitoringPage() {
             {modulList.map(mod => (
               <button
                 key={mod.modul_id}
-                onClick={() => setSelectedModul(mod.modul_id)}
+                onClick={() => {
+                  setSelectedModul(mod.modul_id);
+                  setSelectedSls(null);
+                  setSelectedPcl(null);
+                }}
                 className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
                   selectedModul === mod.modul_id 
                     ? 'bg-sky-600 text-white shadow-2xs' 
@@ -538,10 +557,9 @@ export default function PmlMonitoringPage() {
               </section>
             )}
 
-            {/* LEVEL 3: TABEL MATRIKS ANOMALI PER KK (ORDERED BY NO_BANG) */}
+            {/* LEVEL 3: TABEL MATRIKS ANOMALI PER KK */}
             {(selectedSls || (!selectedPcl && daftarPcl.length === 0)) && (
               <section className="space-y-5">
-                
                 {/* FILTER & TOOLBAR */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
                   <div className="relative flex-1">
@@ -579,8 +597,6 @@ export default function PmlMonitoringPage() {
                   </div>
                 ) : (
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    
-                    {/* TABEL RESPONSIVE MATRIKS QC */}
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
@@ -589,7 +605,6 @@ export default function PmlMonitoringPage() {
                             <th className="py-3.5 px-4 w-28 whitespace-nowrap">No. Bang</th>
                             <th className="py-3.5 px-4 min-w-[180px]">Nama KK</th>
                             
-                            {/* DAFTAR KOLOM YANG MEMILIKI POTENSI ANOMALI DI SLS INI */}
                             {dynamicColumns.map(col => (
                               <th key={col.key} className="py-3.5 px-4 min-w-[160px] text-sky-300 bg-slate-800/80 border-l border-slate-700/50">
                                 {col.label}
@@ -613,25 +628,21 @@ export default function PmlMonitoringPage() {
                                   hasPending ? 'bg-amber-50/20' : 'bg-white'
                                 }`}
                               >
-                                {/* INDEX */}
                                 <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-400">
                                   {idx + 1}
                                 </td>
 
-                                {/* NO BANGUNAN */}
                                 <td className="py-3.5 px-4 font-mono font-black text-slate-900 whitespace-nowrap">
                                   <span className="bg-slate-100 text-slate-800 px-2 py-1 rounded-md border border-slate-200">
                                     #{group.no_bang || '-'}
                                   </span>
                                 </td>
 
-                                {/* NAMA KK & STATUS */}
                                 <td className="py-3.5 px-4">
                                   <div className="font-bold text-slate-900">{group.nama_kk || 'Tanpa Nama KK'}</div>
                                   <div className="text-[10px] text-slate-400 font-mono">{group.level_6_full_code}</div>
                                 </td>
 
-                                {/* CELLS VARIABEL YANG PERLU DIKONFIRMASI */}
                                 {dynamicColumns.map(col => {
                                   const cellData = group.fieldValues[col.key];
 
@@ -648,14 +659,12 @@ export default function PmlMonitoringPage() {
                                           </div>
                                         </div>
                                       ) : (
-                                        // JIKA KK INI TIDAK MEMILIKI ANOMALI DI KOLOM INI -> BLANK / -
                                         <div className="text-center text-slate-300 font-bold py-1">-</div>
                                       )}
                                     </td>
                                   );
                                 })}
 
-                                {/* KOLOM AKSI KONFIRMASI (STICKY RIGHT) */}
                                 <td className="py-3.5 px-4 text-center sticky right-0 bg-white shadow-l border-l border-slate-200 z-10 align-middle">
                                   {hasPending ? (
                                     <button
@@ -713,7 +722,11 @@ export default function PmlMonitoringPage() {
         {modulList.map(mod => (
           <button
             key={mod.modul_id}
-            onClick={() => setSelectedModul(mod.modul_id)}
+            onClick={() => {
+              setSelectedModul(mod.modul_id);
+              setSelectedSls(null);
+              setSelectedPcl(null);
+            }}
             className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-[10px] font-bold cursor-pointer transition-all ${
               selectedModul === mod.modul_id 
                 ? 'text-sky-600 font-extrabold bg-sky-50' 
@@ -744,7 +757,6 @@ export default function PmlMonitoringPage() {
               </button>
             </div>
 
-            {/* DAFTAR TEMUAN / RINGKASAN VARIABEL PERLU KONFIRMASI */}
             <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-2 border border-slate-200">
               <span className="font-bold text-slate-700 block">Daftar Variabel Yang Di-flag ({selectedGroupedTask.anomalies.length}):</span>
               {selectedGroupedTask.anomalies.map((anom, idx) => (
@@ -766,12 +778,11 @@ export default function PmlMonitoringPage() {
                 rows="3" 
                 value={pmlNotes}
                 onChange={(e) => setPmlNotes(e.target.value)}
-                placeholder="Contoh: Sesuai kondisi lapangan (bambu lapis semen), atau Sudah dikoreksi di FASIH menjadi Kayu..."
+                placeholder="Contoh: Sesuai kondisi lapangan (bambu lapis semen), atau Sudah dikoreksi di FASIH..."
                 className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium"
               />
             </div>
 
-            {/* OPSI KONFIRMASI LAPANGAN */}
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button 
                 onClick={() => handleSaveVerifikasiGroup('APPROVED')}
@@ -798,7 +809,6 @@ export default function PmlMonitoringPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

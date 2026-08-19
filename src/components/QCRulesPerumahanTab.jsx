@@ -1,31 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabaseData } from '../lib/supabase';
 import { 
   Plus, Trash2, RefreshCw, AlertTriangle, ShieldCheck, Filter, 
   GitMerge, Users, CheckCircle2, X 
 } from 'lucide-react';
 
-export default function QCRulesPerumahanTab({ onRuleChange }) {
+export default function QCRulesTab({ selectedModul = 'PERUMAHAN', onRuleChange }) {
   const [loading, setLoading] = useState(false);
   const [kolomList, setKolomList] = useState([]);
   const [ruleList, setRuleList] = useState([]);
 
-  // Form State Utama
-  const [ruleType, setRuleType] = useState('SINGLE_COLUMN'); // 'SINGLE_COLUMN', 'CROSS_COLUMN', 'AGGREGATION'
+  // Form State
+  const [ruleType, setRuleType] = useState('SINGLE_COLUMN'); 
   const [ruleName, setRuleName] = useState('');
   const [reason, setReason] = useState('');
   
-  // Dynamic Conditions Array (Untuk SINGLE_COLUMN & CROSS_COLUMN)
+  // Dynamic Conditions Array
   const [conditions, setConditions] = useState([
     { target_column: '', operator: 'IN', trigger_values: '' }
   ]);
 
-  // Aggregation Config (Khusus AGGREGATION)
+  // Aggregation Config
   const [groupByColumn, setGroupByColumn] = useState('no_bang');
-  const [aggTargetColumn, setAggTargetColumn] = useState(''); // State Baru: Kolom Target
-  const [aggTriggerValues, setAggTriggerValues] = useState(''); // State Baru: Nilai Pemicu (opsional)
+  const [aggTargetColumn, setAggTargetColumn] = useState('');
+  const [aggTriggerValues, setAggTriggerValues] = useState('');
   const [aggregationOperator, setAggregationOperator] = useState('COUNT');
-  const [aggregationThreshold, setAggregationThreshold] = useState(1); // Default > 1 KK
+  const [aggregationThreshold, setAggregationThreshold] = useState(1);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReevaluating, setIsReevaluating] = useState(false);
@@ -34,13 +34,13 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
   const [filterKolom, setFilterKolom] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
 
-  // 1. Fetch Master Kolom Khusus Modul PERUMAHAN
-  const fetchKolom = async () => {
+  // 1. Fetch Master Kolom Terfilter Modul
+  const fetchKolom = useCallback(async () => {
     try {
       const { data, error } = await supabaseData
         .from('master_kolom_qc')
-        .select('*')
-        .eq('modul_id', 'PERUMAHAN')
+        .select('kolom_id, modul_id, nama_kolom_db, label_tampilan, tipe_data')
+        .eq('modul_id', selectedModul)
         .eq('is_active', true)
         .order('kolom_id', { ascending: true });
 
@@ -53,41 +53,49 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
         setAggTargetColumn(data[0].nama_kolom_db);
       }
     } catch (err) {
-      console.error("Gagal memuat master kolom perumahan:", err.message);
+      console.error("Gagal memuat master kolom:", err.message);
     }
-  };
+  }, [selectedModul]);
 
-  // 2. Fetch Aturan QC Khusus Modul PERUMAHAN
-  const fetchRules = async () => {
+  // 2. Fetch Aturan QC Terfilter Modul
+  const fetchRules = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabaseData
         .from('rule_configurations')
-        .select('*')
-        .eq('modul_id', 'PERUMAHAN')
+        .select('rule_id, rule_name, target_column, value_type, operator, trigger_values, is_active, modul_id, reason, rule_type, conditions, group_by_column, aggregation_operator, aggregation_threshold')
+        .eq('modul_id', selectedModul)
         .order('rule_id', { ascending: false });
 
       if (error) throw error;
       setRuleList(data || []);
     } catch (err) {
-      console.error("Gagal memuat aturan QC perumahan:", err.message);
+      console.error("Gagal memuat aturan QC:", err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedModul]);
 
   useEffect(() => {
     fetchKolom();
     fetchRules();
-  }, []);
+  }, [fetchKolom, fetchRules]);
 
   // 3. Trigger Re-evaluasi Data
   const handleReevaluateAll = async (showAlert = true) => {
     setIsReevaluating(true);
     try {
-      const { error } = await supabaseData.rpc('reevaluate_all_assignments');
+      let tableName = 'assignments';
+      if (selectedModul === 'INDIVIDU') tableName = 'assignments_individu';
+      if (selectedModul === 'USAHA') tableName = 'assignments_usaha';
+
+      const { error } = await supabaseData.rpc('reevaluate_all_assignments', {
+        p_table_name: tableName,
+        p_modul_id: selectedModul
+      });
       if (error) throw error;
-      if (showAlert) alert("✅ Seluruh data Perumahan berhasil dievaluasi ulang dengan aturan QC terbaru!");
+
+      if (showAlert) alert(`✅ Seluruh data [${selectedModul}] berhasil dievaluasi ulang!`);
       if (onRuleChange) onRuleChange();
     } catch (err) {
       console.error("Gagal re-evaluasi:", err.message);
@@ -147,7 +155,8 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
           const selectedKolomObj = kolomList.find(k => k.nama_kolom_db === c.target_column);
           const valType = selectedKolomObj?.tipe_data === 'NUMBER' ? 'NUMBER' : 'STRING';
           
-          const valsArray = (c.operator === 'IS_NULL' || c.operator === 'GROUP_INCONSISTENT')
+          const noValOps = ['IS_NULL', 'GROUP_INCONSISTENT'];
+          const valsArray = noValOps.includes(c.operator)
             ? [] 
             : c.trigger_values.split(',').map(v => v.trim()).filter(Boolean);
 
@@ -166,7 +175,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
       }
 
       const payload = {
-        modul_id: 'PERUMAHAN',
+        modul_id: selectedModul,
         rule_name: ruleName.trim(),
         rule_type: ruleType,
         target_column: primaryCol,
@@ -182,7 +191,6 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
       };
 
       const { error } = await supabaseData.from('rule_configurations').insert([payload]);
-
       if (error) throw error;
 
       // Reset Form State
@@ -204,7 +212,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
 
   // 5. Hapus Aturan
   const handleDeleteRule = async (ruleId) => {
-    if (!confirm("Hapus aturan QC Perumahan ini?")) return;
+    if (!confirm("Hapus aturan QC ini?")) return;
     try {
       const { error } = await supabaseData
         .from('rule_configurations')
@@ -220,11 +228,13 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
   };
 
   // Filter daftar aturan
-  const filteredRules = ruleList.filter(rule => {
-    const matchType = filterType === 'ALL' || (rule.rule_type || 'SINGLE_COLUMN') === filterType;
-    const matchKolom = filterKolom === 'ALL' || rule.target_column === filterKolom;
-    return matchType && matchKolom;
-  });
+  const filteredRules = useMemo(() => {
+    return ruleList.filter(rule => {
+      const matchType = filterType === 'ALL' || (rule.rule_type || 'SINGLE_COLUMN') === filterType;
+      const matchKolom = filterKolom === 'ALL' || rule.target_column === filterKolom;
+      return matchType && matchKolom;
+    });
+  }, [ruleList, filterType, filterKolom]);
 
   return (
     <div className="space-y-6">
@@ -234,7 +244,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-6 h-6 text-amber-100" />
           <div>
-            <h3 className="font-extrabold text-sm">Modul QC Data Perumahan</h3>
+            <h3 className="font-extrabold text-sm">Modul QC Data [{selectedModul}]</h3>
             <p className="text-xs text-amber-100">Konfigurasi aturan tunggal, lintas indikator (Multi-Kondisi), maupun agregasi per nomor bangunan.</p>
           </div>
         </div>
@@ -252,7 +262,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
       {/* FORM TAMBAH ATURAN */}
       <section className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-5">
         <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Plus className="w-4 h-4 text-orange-600" /> Tambah Aturan Konfirmasi QC Perumahan Baru
+          <Plus className="w-4 h-4 text-orange-600" /> Tambah Aturan Konfirmasi QC Baru [{selectedModul}]
         </h2>
 
         {/* TABS TIPE ATURAN */}
@@ -295,7 +305,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
             </div>
             <div>
               <p className="text-xs font-bold text-slate-800">Agregasi Per Bangunan</p>
-              <p className="text-[10px] text-slate-500">Jumlah/hitung KK per No. Bangunan</p>
+              <p className="text-[10px] text-slate-500">Jumlah/hitung per No. Bangunan</p>
             </div>
           </button>
         </div>
@@ -374,7 +384,10 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
                       <option value="IN">Termasuk Dalam (IN)</option>
                       <option value="=">Sama Dengan (=)</option>
                       <option value=">">Lebih Dari (&gt;)</option>
+                      <option value=">=">Lebih Dari Sama Dengan (&gt;=)</option>
                       <option value="<">Kurang Dari (&lt;)</option>
+                      <option value="<=">Kurang Dari Sama Dengan (&lt;=)</option>
+                      <option value="BETWEEN">Rentang Nilai (BETWEEN)</option>
                       <option value="LIKE">Mirip Teks (LIKE)</option>
                       <option value="IS_NULL">Kosong / NULL</option>
                       <option value="GROUP_INCONSISTENT">Beda Isian Per Bangunan</option>
@@ -386,7 +399,10 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
                     <input
                       type="text"
                       disabled={cond.operator === 'IS_NULL' || cond.operator === 'GROUP_INCONSISTENT'}
-                      placeholder={cond.operator === 'IS_NULL' ? 'Tanpa Nilai' : 'Contoh: Bambu, Kayu'}
+                      placeholder={
+                        cond.operator === 'IS_NULL' ? 'Tanpa Nilai' :
+                        cond.operator === 'BETWEEN' ? 'Contoh: 10, 50' : 'Contoh: Bambu, Kayu'
+                      }
                       value={(cond.operator === 'IS_NULL' || cond.operator === 'GROUP_INCONSISTENT') ? '' : cond.trigger_values}
                       onChange={(e) => handleConditionChange(idx, 'trigger_values', e.target.value)}
                       className="w-full p-2 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none disabled:bg-slate-100"
@@ -456,9 +472,6 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
                     onChange={(e) => setAggTriggerValues(e.target.value)}
                     className="w-full p-2 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none"
                   />
-                  <p className="text-[9px] text-slate-400 mt-1 italic">
-                    Kosongkan jika ingin mendeteksi nilai APAPUN yang ganda dalam 1 bangunan.
-                  </p>
                 </div>
 
                 <div>
@@ -478,7 +491,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
                       onChange={(e) => setAggregationThreshold(e.target.value)}
                       className="w-full p-2 border border-slate-300 rounded-lg text-xs font-bold"
                     />
-                    <span className="text-xs text-slate-500 font-medium shrink-0">KK</span>
+                    <span className="text-xs text-slate-500 font-medium shrink-0">Baris</span>
                   </div>
                 </div>
               </div>
@@ -492,24 +505,23 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
               className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-2xs flex items-center justify-center gap-2"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>{isSubmitting ? 'Menyimpan Aturan...' : 'Simpan Aturan QC Perumahan Baru'}</span>
+              <span>{isSubmitting ? 'Menyimpan Aturan...' : `Simpan Aturan QC [${selectedModul}] Baru`}</span>
             </button>
           </div>
         </form>
       </section>
 
-      {/* DAFTAR ATURAN DENGAN FILTER INDIKATOR & TIPE */}
+      {/* DAFTAR ATURAN */}
       <section className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-slate-100">
           <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <span>Daftar Aturan QC Perumahan Aktif</span>
+            <span>Daftar Aturan QC [{selectedModul}] Aktif</span>
             <span className="bg-orange-100 text-orange-800 text-[11px] px-2 py-0.5 rounded-full font-mono">
               {filteredRules.length} dari {ruleList.length} aturan
             </span>
           </h2>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* FILTER TIPE ATURAN */}
             <div className="flex items-center gap-1.5">
               <Filter className="w-3.5 h-3.5 text-slate-500" />
               <select
@@ -524,7 +536,6 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
               </select>
             </div>
 
-            {/* FILTER INDIKATOR */}
             <div className="flex items-center gap-1.5">
               <select
                 value={filterKolom}
@@ -548,7 +559,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
           </div>
         ) : filteredRules.length === 0 ? (
           <p className="text-xs text-slate-400 italic py-8 text-center">
-            {ruleList.length === 0 ? "Belum ada aturan QC yang diatur untuk modul Perumahan." : "Tidak ada aturan yang cocok dengan filter ini."}
+            {ruleList.length === 0 ? `Belum ada aturan QC yang diatur untuk modul [${selectedModul}].` : "Tidak ada aturan yang cocok dengan filter ini."}
           </p>
         ) : (
           <div className="space-y-3">
@@ -575,7 +586,6 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
                       Reason: <span className="italic text-slate-700">{rule.reason || rule.rule_name}</span>
                     </p>
 
-                    {/* DETAILS KONDISI JSONB */}
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {Array.isArray(rule.conditions) && rule.conditions.length > 0 ? (
                         rule.conditions.map((c, ci) => (
@@ -587,7 +597,7 @@ export default function QCRulesPerumahanTab({ onRuleChange }) {
                         ))
                       ) : (
                         <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                          {rule.target_column} {rule.operator || 'COUNT'} [{Array.isArray(rule.trigger_values) ? rule.trigger_values.join(', ') : 'SEMUA NILAIGANDA'}] (Threshold: &gt; {rule.aggregation_threshold || 1})
+                          {rule.target_column} {rule.operator || 'COUNT'} [{Array.isArray(rule.trigger_values) ? rule.trigger_values.join(', ') : 'SEMUA NILAI GANDA'}] (Threshold: &gt; {rule.aggregation_threshold || 1})
                         </span>
                       )}
                     </div>
