@@ -187,7 +187,7 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     const cleanStr = String(val).replace(/[^0-9.-]/g, '');
     const num = Number(cleanStr);
     if (isNaN(num)) return val;
-    return `Rp ${num.toLocaleString('id-ID')}`;
+    return `${num.toLocaleString('id-ID')}`;
   };
 
   const formatHeaderKategori = (catText) => {
