@@ -372,7 +372,7 @@ export default function PmlMonitoringPage() {
             )}
             <div>
               <h1 className="font-black text-sm sm:text-base text-sky-400 tracking-wide flex items-center gap-2">
-                <span>SITABUL</span>
+                <span>SIBULAK</span>
                 <span className="hidden sm:inline-block text-[10px] bg-sky-500/20 text-sky-300 font-mono font-bold px-2 py-0.5 rounded-md border border-sky-500/30">MONITORING PML</span>
               </h1>
               <p className="text-[11px] text-slate-400 font-medium truncate max-w-[200px] sm:max-w-xs">

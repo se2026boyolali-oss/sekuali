@@ -238,7 +238,7 @@ export default function AdminDashboardPage() {
           <Settings className="w-6 h-6 text-sky-400" />
           <div>
             <h1 className="font-black text-base sm:text-lg tracking-wide text-sky-400">
-              SITABUL - {isAdmin ? 'PANEL ADMIN' : 'DASHBOARD MONITORS'}
+              SIBULAK - {isAdmin ? 'PANEL ADMIN' : 'DASHBOARD MONITORS'}
             </h1>
             <p className="text-[10px] text-slate-400">
               {isAdmin ? 'Pengelolaan Sektor, Aturan QC & Import Data CSV' : 'Monitoring Tabulasi & Rekap Pengecekan Petugas'}
