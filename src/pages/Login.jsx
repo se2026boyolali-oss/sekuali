@@ -83,11 +83,11 @@ const handleLogin = async (e) => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-sky-50/40 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-cyan-50/40 px-4">
       <div className="w-full max-w-sm space-y-6 rounded-2xl bg-white p-6 sm:p-8 shadow-md border border-slate-200">
         <div className="text-center space-y-1">
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">SIBULAK</h2>
-          <p className="text-xs text-slate-500 font-medium">SIstem taBULasi Kegiatan Sensus Ekonomi 2026</p>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">SIBULAK - SE</h2>
+          <p className="text-xs text-slate-500 font-medium">SIstem taBULAsi Kegiatan Sensus Ekonomi 2026</p>
         </div>
 
         {errorMsg && (
@@ -104,7 +104,7 @@ const handleLogin = async (e) => {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="block w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm text-slate-900 shadow-3xs focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 bg-slate-50 font-medium"
+              className="block w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm text-slate-900 shadow-3xs focus:border-cyan-500 focus:outline-hidden focus:ring-1 focus:ring-cyan-500 bg-slate-50 font-medium"
               placeholder="nama@bps.go.id atau mitra@gmail.com"
             />
           </div>
@@ -116,7 +116,7 @@ const handleLogin = async (e) => {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="block w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm text-slate-900 shadow-3xs focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 bg-slate-50 font-medium"
+              className="block w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm text-slate-900 shadow-3xs focus:border-cyan-500 focus:outline-hidden focus:ring-1 focus:ring-cyan-500 bg-slate-50 font-medium"
               placeholder="••••••••"
             />
           </div>
@@ -124,7 +124,7 @@ const handleLogin = async (e) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex justify-center py-2.5 px-4 rounded-xl shadow-2xs text-xs sm:text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all mt-6"
+            className="w-full flex justify-center py-2.5 px-4 rounded-xl shadow-2xs text-xs sm:text-sm font-bold text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all mt-6"
           >
             {loading ? 'Memverifikasi Hak Akses...' : 'Masuk Dashboard'}
           </button>

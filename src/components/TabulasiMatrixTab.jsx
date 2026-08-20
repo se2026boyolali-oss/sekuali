@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   RefreshCw, ChevronRight, Home, BarChart2, X, 
   Users, MapPin, Building, Search, AlertTriangle, 
-  Check, Sliders, ExternalLink 
+  Check, Sliders, ExternalLink, UserCheck, ShieldCheck, User
 } from 'lucide-react';
 
 // MASTER DICTIONARY NOMOR URUT PATEN BERDASARKAN KUESIONER
@@ -105,10 +105,8 @@ const MASTER_KODE_MAP = {
   }
 };
 
-// FORMAT ANGKA DENGAN PEMISAH RIBUAN UNTUK HEADER KATEGORI RANGE
 const formatNumbersInString = (text) => {
   if (!text) return '';
-  // Format angka murni (minimal 1 digit) yang ada di string agar dipisah ribuan dengan titik (.)
   return String(text).replace(/\b\d+\b/g, (match) => {
     const num = Number(match);
     return isNaN(num) ? match : num.toLocaleString('id-ID');
@@ -124,7 +122,6 @@ const getPatenCategoryInfo = (selectedKolom, catText) => {
     return kolomMap[cleanKey];
   }
 
-  // JIKA BERUPA KATEGORI RANGE GAJI / NUMBER
   const formattedRangeText = formatNumbersInString(rawText);
   const rangeMatch = rawText.match(/(\d+)/);
   if (rangeMatch) {
@@ -165,7 +162,15 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
   // Modal Detail State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
-  const [modalTitleInfo, setModalTitleInfo] = useState({ wilayah: '', kategori: '', count: 0 });
+  const [modalTitleInfo, setModalTitleInfo] = useState({ 
+    wilayah: '', 
+    kategori: '', 
+    count: 0,
+    kecName: '',
+    desaName: '',
+    pmlName: '',
+    pplName: ''
+  });
   const [detailList, setDetailList] = useState([]);
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -181,7 +186,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
   });
   const [toastMessage, setToastMessage] = useState(null);
 
-  // PARSER FORMAT ANGKA & GAJI RUPIAH
   const formatAngka = (val) => {
     if (val === null || val === undefined || val === '') return '-';
     const cleanStr = String(val).replace(/[^0-9.-]/g, '');
@@ -190,12 +194,11 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     return `${num.toLocaleString('id-ID')}`;
   };
 
-  const formatHeaderKategori = (catText) => {
+  const formatHeaderKategori = useCallback((catText) => {
     const info = getPatenCategoryInfo(selectedKolom, catText);
     return info.label;
-  };
+  }, [selectedKolom]);
 
-  // LOGIKA DETEKSI OPERATOR RANGE
   const detectOperatorAndValue = (catText) => {
     const text = String(catText || '').trim();
     if (text.includes('-') || /\d+\s*s\/d\s*\d+/i.test(text)) return { operator: 'BETWEEN' };
@@ -207,7 +210,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     return { operator: 'IN' };
   };
 
-  // 1. Fetch Master Kolom
   const fetchMasterKolom = useCallback(async () => {
     try {
       const { data, error } = await supabaseData
@@ -229,7 +231,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     }
   }, [selectedModul]);
 
-  // 2. Fetch Aturan QC Aktif
   const fetchActiveRules = useCallback(async () => {
     try {
       const { data, error } = await supabaseData
@@ -256,7 +257,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     fetchActiveRules();
   }, [selectedModul, resetToKabupaten, fetchMasterKolom, fetchActiveRules]);
 
-  // 3. Fetch Matrix Tabulasi
   const fetchMatrixTabulasi = useCallback(async () => {
     if (!selectedKolom) return;
 
@@ -309,7 +309,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     }
   }, [selectedKolom, currentKec.code, currentDesa.code, fetchMatrixTabulasi]);
 
-  // PRESISI PENGECEKAN ATURAN QC
   const isCategoryInRule = useCallback((category) => {
     if (category === undefined || category === null) return false;
 
@@ -344,10 +343,18 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
   }, [selectedKolom, activeRules]);
 
   const handleWilayahClick = (row) => {
-    if (row.level_wilayah === 'KECAMATAN') {
-      setCurrentKec({ code: row.kode_wilayah, name: row.nama_wilayah });
-    } else if (row.level_wilayah === 'DESA') {
-      setCurrentDesa({ code: row.kode_wilayah, name: row.nama_wilayah });
+    // Membaca lvl_wil dan kode_wil dari return SQL terbaru
+    const levelWil = row.lvl_wil || row.level_wilayah;
+    const kodeWil = row.kode_wil || row.kode_wilayah;
+    const namaWil = row.nama_wil || row.nama_wilayah;
+
+    if (levelWil === 'KECAMATAN') {
+      // Ambil kode kecamatan (3 digit angka jika formatnya '[010] KEC. BOYOLALI')
+      const cleanCode = kodeWil.length > 3 ? kodeWil.slice(-3) : kodeWil;
+      setCurrentKec({ code: cleanCode, name: namaWil });
+    } else if (levelWil === 'DESA') {
+      const cleanCode = kodeWil.length > 3 ? kodeWil.slice(-3) : kodeWil;
+      setCurrentDesa({ code: cleanCode, name: namaWil });
     }
   };
 
@@ -358,50 +365,69 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     }, 0);
   };
 
-const handleCellClick = useCallback(async (row, category, count) => {
-  // 1. Validasi awal
-  if (!count || count === 0 || !row) return;
+  const handleCellClick = useCallback(async (row, category, count) => {
+    if (!count || count === 0 || !row) return;
 
-  // 2. Normalisasi string category agar tidak null/undefined/object
-  const safeCategory = typeof category === 'object' 
-    ? String(category.label || category.no || '') 
-    : String(category ?? '');
+    const safeCategory = typeof category === 'object' 
+      ? String(category.label || category.no || '') 
+      : String(category ?? '');
 
-  const activeKolomObj = kolomOptions?.find(k => k.nama_kolom_db === selectedKolom);
-  const labelKolom = activeKolomObj ? activeKolomObj.label_tampilan : selectedKolom;
+    const activeKolomObj = kolomOptions?.find(k => k.nama_kolom_db === selectedKolom);
+    const labelKolom = activeKolomObj ? activeKolomObj.label_tampilan : selectedKolom;
 
-  setModalTitleInfo({
-    wilayah: row.nama_wilayah || 'Wilayah',
-    kategori: `${labelKolom}: "${formatHeaderKategori(safeCategory)}"`,
-    count: count
-  });
-  
-  setSearchFilter('');
-  setDetailList([]);
-  setIsModalOpen(true);
-  setModalLoading(true);
+    // AMBIL KODE WILAYAH DENGAN SAFE FALLBACK (karena dari fungsi matriks namanya kode_wil)
+    const kodeWilayahFix = String(row.kode_wil || row.kode_wilayah || '');
+    const levelWilayahFix = String(row.lvl_wil || row.level_wilayah || 'KECAMATAN');
 
-  try {
-    // 3. Panggil Stored Procedure Supabase
-    const { data, error } = await supabaseData.rpc('get_detail_rt_tabulasi', {
-      p_modul_id: selectedModul,
-      p_kolom: selectedKolom,
-      p_kategori: safeCategory, // Kategori murni tanpa format angka tampilan
-      p_kode_wilayah: row.kode_wilayah,
-      p_level_wilayah: row.level_wilayah,
-      p_kdkec: currentKec.code 
+    setModalTitleInfo({
+      wilayah: row.nama_wil || row.nama_wilayah || 'Wilayah',
+      kategori: `${labelKolom}: "${formatHeaderKategori(safeCategory)}"`,
+      count: count,
+      kecName: currentKec.name || (levelWilayahFix === 'KECAMATAN' ? (row.nama_wil || row.nama_wilayah) : ''),
+      desaName: currentDesa.name || (levelWilayahFix === 'DESA' ? (row.nama_wil || row.nama_wilayah) : ''),
+      pmlName: '',
+      pplName: ''
     });
+    
+    setSearchFilter('');
+    setDetailList([]);
+    setIsModalOpen(true);
+    setModalLoading(true);
 
-    if (error) throw error;
-    setDetailList(data || []);
+    try {
+      // Panggil RPC dengan SEMUA KEY TERDEFINISI (tidak ada undefined)
+      const { data, error } = await supabaseData.rpc('get_detail_rt_tabulasi', {
+        p_modul_id: selectedModul || 'PERUMAHAN',
+        p_kolom: selectedKolom || '',
+        p_kategori: safeCategory || '',
+        p_kode_wilayah: kodeWilayahFix,
+        p_level_wilayah: levelWilayahFix,
+        p_kdkec: currentKec.code ? String(currentKec.code) : null
+      });
 
-  } catch (err) {
-    console.error("Gagal memuat detail daftar RT:", err.message);
-    alert("Gagal memuat detail data: " + err.message);
-  } finally {
-    setModalLoading(false);
-  }
-}, [selectedKolom, selectedModul, currentKec.code, kolomOptions, formatHeaderKategori]);
+      if (error) throw error;
+      const resultList = data || [];
+      setDetailList(resultList);
+
+      // Ekstrak Nama PML & PPL secara otomatis
+      if (resultList.length > 0) {
+        const uniquePml = Array.from(new Set(resultList.map(i => i.nama_pml).filter(v => v && v !== '-')));
+        const uniquePpl = Array.from(new Set(resultList.map(i => i.nama_ppl).filter(v => v && v !== '-')));
+
+        setModalTitleInfo(prev => ({
+          ...prev,
+          pmlName: uniquePml.length === 1 ? uniquePml[0] : uniquePml.length > 1 ? `${uniquePml.length} PML Bertugas` : '-',
+          pplName: uniquePpl.length === 1 ? uniquePpl[0] : uniquePpl.length > 1 ? `${uniquePpl.length} PPL Bertugas` : '-'
+        }));
+      }
+
+    } catch (err) {
+      console.error("Gagal memuat detail daftar RT:", err.message);
+      alert("Gagal memuat detail data: " + err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  }, [selectedKolom, selectedModul, currentKec.code, currentKec.name, currentDesa.name, kolomOptions, formatHeaderKategori]);
 
   const handleOpenRuleModal = (e, category) => {
     e.stopPropagation();
@@ -470,7 +496,10 @@ const handleCellClick = useCallback(async (row, category, count) => {
     return detailList.filter(item => 
       item.nama_kk?.toLowerCase().includes(query) ||
       item.no_bang?.toLowerCase().includes(query) ||
-      item.level_5_name?.toLowerCase().includes(query)
+      item.level_5_name?.toLowerCase().includes(query) ||
+      item.nama_pml?.toLowerCase().includes(query) ||
+      item.nama_ppl?.toLowerCase().includes(query) ||
+      item.nama_desa?.toLowerCase().includes(query)
     );
   }, [detailList, searchFilter]);
 
@@ -489,7 +518,7 @@ const handleCellClick = useCallback(async (row, category, count) => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-sky-600" /> Profil & Tabulasi Silang Wilayah [{selectedModul}]
+              <BarChart2 className="w-4 h-4 text-cyan-600" /> Profil & Tabulasi Silang Wilayah [{selectedModul}]
             </h2>
             <p className="text-xs text-slate-500">
               Klik ikon <span className="font-bold text-amber-600">+ Rule QC</span> di header tabel untuk menjadikan kategori tersebut sebagai Aturan Anomali.
@@ -502,7 +531,7 @@ const handleCellClick = useCallback(async (row, category, count) => {
               value={selectedKolom}
               onChange={(e) => setSelectedKolom(e.target.value)}
               disabled={loading}
-              className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50 focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
+              className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50 focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
             >
               {kolomOptions.map(col => (
                 <option key={col.nama_kolom_db} value={col.nama_kolom_db}>
@@ -517,7 +546,7 @@ const handleCellClick = useCallback(async (row, category, count) => {
         <div className="flex items-center gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 font-medium overflow-x-auto">
           <button
             onClick={resetToKabupaten}
-            className={`flex items-center gap-1 font-bold shrink-0 ${!currentKec.code ? 'text-sky-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`flex items-center gap-1 font-bold shrink-0 ${!currentKec.code ? 'text-cyan-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
           >
             <Home className="w-3.5 h-3.5" /> [3309] KAB. BOYOLALI
           </button>
@@ -527,7 +556,7 @@ const handleCellClick = useCallback(async (row, category, count) => {
               <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <button
                 onClick={() => setCurrentDesa({ code: null, name: '' })}
-                className={`font-bold shrink-0 ${!currentDesa.code ? 'text-sky-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`font-bold shrink-0 ${!currentDesa.code ? 'text-cyan-600 font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 KEC. {currentKec.name}
               </button>
@@ -537,7 +566,7 @@ const handleCellClick = useCallback(async (row, category, count) => {
           {currentDesa.code && (
             <>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="font-extrabold text-sky-600 shrink-0">DESA {currentDesa.name}</span>
+              <span className="font-extrabold text-cyan-600 shrink-0">DESA {currentDesa.name}</span>
             </>
           )}
         </div>
@@ -552,13 +581,13 @@ const handleCellClick = useCallback(async (row, category, count) => {
             </span>
           </div>
           <div className="text-xs font-bold text-slate-700">
-            Total: <span className="text-sky-600 font-mono font-black">{grandTotal.toLocaleString('id-ID')} KK</span>
+            Total: <span className="text-cyan-600 font-mono font-black">{grandTotal.toLocaleString('id-ID')} {selectedModul === 'INDIVIDU' ? 'ART' : 'KK'}</span>
           </div>
         </div>
 
         {loading ? (
           <div className="text-center py-16 text-slate-400 text-xs font-bold flex items-center justify-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-sky-500" /> Memuat Agregasi Data Matriks...
+            <RefreshCw className="w-4 h-4 animate-spin text-cyan-500" /> Memuat Agregasi Data Matriks...
           </div>
         ) : matrixData.length === 0 ? (
           <div className="text-center py-12 text-slate-400 text-xs italic">Data tidak ditemukan pada hirarki wilayah ini.</div>
@@ -568,7 +597,7 @@ const handleCellClick = useCallback(async (row, category, count) => {
               <thead>
                 <tr className="bg-slate-100 text-slate-700 uppercase text-[10px] font-black border-b border-slate-200">
                   <th className="p-3 border-r border-slate-200 sticky left-0 bg-slate-100 z-10 w-64">[Kode] Wilayah</th>
-                  <th className="p-3 border-r border-slate-200 text-center w-24">Total KK</th>
+                  <th className="p-3 border-r border-slate-200 text-center w-24">Total {selectedModul === 'INDIVIDU' ? 'ART' : 'KK'}</th>
                   
                   {categories.map((cat, idx) => {
                     const alreadyAdded = isCategoryInRule(cat);
@@ -609,18 +638,18 @@ const handleCellClick = useCallback(async (row, category, count) => {
                   const rowTotal = Number(row.total_rt || 0);
 
                   return (
-                    <tr key={rIdx} className="hover:bg-sky-50/30 transition-colors">
+                    <tr key={rIdx} className="hover:bg-cyan-50/30 transition-colors">
                       <td className="p-3 border-r border-slate-200 sticky left-0 bg-white font-bold text-slate-900">
                         {row.level_wilayah !== 'SLS' ? (
                           <button
                             onClick={() => handleWilayahClick(row)}
-                            className="text-sky-600 hover:text-sky-800 underline font-black text-left flex items-center justify-between w-full group cursor-pointer"
+                            className="text-cyan-600 hover:text-cyan-800 underline font-black text-left flex items-center justify-between w-full group cursor-pointer"
                           >
-                            <span>{row.nama_wilayah}</span>
+                            <span>{row.nama_wil}</span>
                             <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </button>
                         ) : (
-                          <span>{row.nama_wilayah}</span>
+                          <span>{row.nama_wil}</span>
                         )}
                       </td>
 
@@ -638,21 +667,21 @@ const handleCellClick = useCallback(async (row, category, count) => {
                             onClick={() => handleCellClick(row, cat, count)}
                             className={`p-2 border-r border-slate-100 align-middle transition-all ${
                               count > 0 
-                                ? 'cursor-pointer hover:bg-sky-100/80 hover:shadow-inner' 
+                                ? 'cursor-pointer hover:bg-cyan-100/80 hover:shadow-inner' 
                                 : 'opacity-40'
                             }`}
-                            title={count > 0 ? `Klik untuk lihat ${count} daftar KK pada kategori "${formatHeaderKategori(cat)}"` : ''}
+                            title={count > 0 ? `Klik untuk lihat ${count} daftar ${selectedModul === 'INDIVIDU' ? 'ART' : 'KK'} pada kategori "${formatHeaderKategori(cat)}"` : ''}
                           >
                             <div className="space-y-1">
                               <div className="flex justify-between items-center text-[11px]">
-                                <span className={`font-mono font-bold ${count > 0 ? 'text-sky-700 underline' : 'text-slate-400'}`}>
+                                <span className={`font-mono font-bold ${count > 0 ? 'text-cyan-700 underline' : 'text-slate-400'}`}>
                                   {count.toLocaleString('id-ID')}
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-500">{pct}%</span>
                               </div>
                               <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
                                 <div
-                                  className="bg-sky-500 h-full rounded-full transition-all duration-300"
+                                  className="bg-cyan-500 h-full rounded-full transition-all duration-300"
                                   style={{ width: `${pct}%` }}
                                 ></div>
                               </div>
@@ -670,7 +699,7 @@ const handleCellClick = useCallback(async (row, category, count) => {
                   <td className="p-3 border-r border-slate-300 sticky left-0 bg-slate-200 z-10 uppercase">
                     TOTAL KESELURUHAN
                   </td>
-                  <td className="p-3 border-r border-slate-300 text-center font-mono font-black text-sky-700">
+                  <td className="p-3 border-r border-slate-300 text-center font-mono font-black text-cyan-700">
                     {grandTotal.toLocaleString('id-ID')}
                   </td>
                   {categories.map((cat, idx) => {
@@ -681,7 +710,7 @@ const handleCellClick = useCallback(async (row, category, count) => {
                       <td key={idx} className="p-3 text-center border-r border-slate-300 font-mono">
                         <div className="flex justify-between items-center text-[11px]">
                           <span className="font-bold text-slate-900">{catTotal.toLocaleString('id-ID')}</span>
-                          <span className="text-sky-700 font-black">{catPct}%</span>
+                          <span className="text-cyan-700 font-black">{catPct}%</span>
                         </div>
                       </td>
                     );
@@ -693,59 +722,103 @@ const handleCellClick = useCallback(async (row, category, count) => {
         )}
       </section>
 
-      {/* MODAL DETAIL DAFTAR KK */}
+      {/* MODAL DETAIL DAFTAR KK / INDIVIDU */}
       {isModalOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
           onClick={() => setIsModalOpen(false)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-slate-900 text-white p-4 flex justify-between items-start shrink-0">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sky-400 font-bold text-xs">
-                  <Users className="w-4 h-4" /> DAFTAR RUMAH TANGGA / KK [{selectedModul}]
+            {/* HEADER MODAL DENGAN INFORMASI LENGKAP */}
+            <div className="bg-slate-900 text-white p-5 flex justify-between items-start shrink-0 space-y-2">
+              <div className="space-y-2 w-full pr-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs uppercase tracking-wider">
+                    <Users className="w-4 h-4" /> DAFTAR SAMPEL {selectedModul === 'INDIVIDU' ? 'INDIVIDU (ART)' : 'KK / RUMAH TANGGA'} [{selectedModul}]
+                  </div>
+                  <span className="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full">
+                    {modalTitleInfo.count} Records
+                  </span>
                 </div>
-                <h3 className="text-base font-black text-white">{modalTitleInfo.wilayah}</h3>
-                <p className="text-xs text-slate-300 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 inline-block font-medium">
-                  {modalTitleInfo.kategori}
-                </p>
+
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <Building className="w-4 h-4 text-cyan-400" />
+                  {modalTitleInfo.wilayah}
+                </h3>
+
+                {/* BADGES INFORMASI WILAYAH & PETUGAS */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+                  <span className="bg-slate-800 text-slate-200 border border-slate-700 px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-cyan-400" />
+                    KEC: <strong className="text-white">{modalTitleInfo.kecName || '-'}</strong>
+                  </span>
+
+                  {modalTitleInfo.desaName && (
+                    <span className="bg-slate-800 text-slate-200 border border-slate-700 px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-emerald-400" />
+                      DESA: <strong className="text-white">{modalTitleInfo.desaName}</strong>
+                    </span>
+                  )}
+
+                  {modalTitleInfo.pmlName && (
+                    <span className="bg-amber-950/80 text-amber-200 border border-amber-800 px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-amber-400" />
+                      PML: <strong className="text-amber-100">{modalTitleInfo.pmlName}</strong>
+                    </span>
+                  )}
+
+                  {modalTitleInfo.pplName && (
+                    <span className="bg-cyan-950/80 text-cyan-200 border border-cyan-800 px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
+                      <UserCheck className="w-3 h-3 text-cyan-400" />
+                      PPL: <strong className="text-cyan-100">{modalTitleInfo.pplName}</strong>
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-1">
+                  <span className="text-xs text-amber-300 bg-amber-950/60 px-3 py-1 rounded-lg border border-amber-800/80 inline-block font-semibold">
+                    Kategori Terpilih: {modalTitleInfo.kategori}
+                  </span>
+                </div>
               </div>
 
               <button 
                 onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {/* BAR PENCARIAN MODAL */}
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center gap-3 shrink-0">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input 
                   type="text"
-                  placeholder="Cari Nama KK, No. Bangunan, atau RT/Dusun..."
+                  placeholder="Cari Nama, Desa, PML, PPL, No. Bangunan, atau SLS..."
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium"
+                  className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-cyan-500 focus:outline-none font-medium"
                 />
               </div>
               <div className="text-xs font-bold text-slate-600 whitespace-nowrap bg-white px-3 py-2 rounded-xl border border-slate-200">
-                Total: <span className="text-sky-600 font-black">{filteredDetailList.length}</span> / {modalTitleInfo.count} RT
+                Menampilkan: <span className="text-cyan-600 font-black">{filteredDetailList.length}</span> / {modalTitleInfo.count} Data
               </div>
             </div>
 
-            <div className="p-4 overflow-y-auto flex-1">
+            {/* TABEL HASIL SEARCH/LIST DETIL */}
+            <div className="p-4 overflow-y-auto flex-1 bg-white">
               {modalLoading ? (
                 <div className="py-16 text-center text-slate-400 text-xs font-bold flex items-center justify-center gap-2">
-                  <RefreshCw className="w-4 h-4 animate-spin text-sky-500" /> Memuat Daftar Nama Kepala Keluarga...
+                  <RefreshCw className="w-4 h-4 animate-spin text-cyan-500" /> Memuat Detail Rincian Sampel...
                 </div>
               ) : filteredDetailList.length === 0 ? (
                 <div className="py-12 text-center text-slate-400 text-xs italic">
-                  Tidak ada nama Kepala Keluarga yang sesuai dengan pencarian.
+                  Tidak ada data yang sesuai dengan kriteria pencarian.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -753,54 +826,95 @@ const handleCellClick = useCallback(async (row, category, count) => {
                     <thead>
                       <tr className="bg-slate-100 text-slate-600 uppercase text-[10px] font-black border-b border-slate-200">
                         <th className="p-2.5 w-10 text-center">No</th>
-                        <th className="p-2.5">Nama Kepala Keluarga (KK)</th>
-                        <th className="p-2.5">No. Bangunan & Jenis</th>
-                        <th className="p-2.5">Satuan SLS / Dusun</th>
+                        <th className="p-2.5">
+                          {selectedModul === 'INDIVIDU' ? 'Nama Anggota Keluarga (ART)' : 'Nama Kepala Keluarga (KK)'}
+                        </th>
+                        <th className="p-2.5">Wilayah & SLS</th>
+                        <th className="p-2.5">Petugas Pendata (PPL / PML)</th>
+                        <th className="p-2.5 text-center">No. Bangunan</th>
                         <th className="p-2.5 text-center">Isi Indikator</th>
                         <th className="p-2.5 text-center w-28">Aksi FASIH</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {filteredDetailList.map((item, idx) => (
-                        <tr key={item.assignment_id || idx} className="hover:bg-sky-50/50 transition-colors">
-                          <td className="p-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
-                          <td className="p-2.5 font-bold text-slate-900 flex items-center gap-1.5">
-                            <Building className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                            <span>{item.nama_kk}</span>
-                          </td>
-                          <td className="p-2.5 text-slate-600">
-                            <span className="font-mono font-bold text-slate-800">#{item.no_bang}</span>
-                            <span className="text-[11px] text-slate-400 block">{item.kode_bang_label}</span>
-                          </td>
-                          <td className="p-2.5 text-slate-600">
-                            <span className="flex items-center gap-1 text-[11px]">
-                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                              {item.level_5_name}
-                            </span>
-                          </td>
-                          <td className="p-2.5 text-center">
-                            <span className="bg-sky-100 text-sky-900 text-[11px] font-extrabold px-2.5 py-1 rounded-lg border border-sky-200 inline-block font-mono">
-                              {formatAngka(item.nilai_indikator)}
-                            </span>
-                          </td>
-                          <td className="p-2.5 text-center">
-                            {item.assignment_id ? (
-                              <a
-                                href={`https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${item.assignment_id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[10px] px-2.5 py-1.2 rounded-lg transition-all shadow-2xs hover:shadow-xs"
-                                title="Buka Dokumen Hasil Sensus di Aplikasi FASIH"
-                              >
-                                <span>Lihat FASIH</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 font-bold italic">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredDetailList.map((item, idx) => {
+                        // KUNCI UTAMA: Gabungkan assignment_id dan index1 (atau index_art) agar key React 100% Unik per individu
+                        const artIndex = item.index1 ?? item.index_art;
+                        const rowKey = artIndex !== undefined 
+                          ? `${item.assignment_id}_${artIndex}` 
+                          : `${item.assignment_id || idx}`;
+
+                        return (
+                          <tr key={rowKey} className="hover:bg-cyan-50/50 transition-colors">
+                            <td className="p-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="p-2.5 font-bold text-slate-900">
+                              <div className="flex items-center gap-1.5">
+                                {selectedModul === 'INDIVIDU' ? (
+                                  <User className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                ) : (
+                                  <Building className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
+                                )}
+                                <div>
+                                  <span>{item.nama_kk || 'NAMA TIDAK TERSEDIA'}</span>
+                                  {artIndex !== undefined && (
+                                    <span className="text-[10px] text-slate-400 font-normal block">
+                                      Index ART: #{artIndex}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-slate-600">
+                              <span className="font-bold text-slate-800 block text-[11px]">
+                                {item.nama_desa ? `Desa ${item.nama_desa}` : item.level_5_name || '-'}
+                              </span>
+                              <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                {item.nama_sls || item.idsubsls || 'SLS Wilayah'}
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-slate-700">
+                              <div className="space-y-0.5 text-[11px]">
+                                <div className="flex items-center gap-1 text-cyan-800 font-bold">
+                                  <span className="text-[9px] bg-cyan-100 text-cyan-800 px-1 rounded">PPL</span>
+                                  <span>{item.nama_ppl || '-'}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-amber-800 font-semibold text-[10px]">
+                                  <span className="text-[9px] bg-amber-100 text-amber-800 px-1 rounded">PML</span>
+                                  <span>{item.nama_pml || '-'}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-[11px]">
+                                #{item.no_bang || '-'}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block mt-0.5">{item.kode_bang_label || ''}</span>
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <span className="bg-cyan-100 text-cyan-900 text-[11px] font-extrabold px-2.5 py-1 rounded-lg border border-cyan-200 inline-block font-mono">
+                                {formatAngka(item.nilai_indikator)}
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-center">
+                              {item.assignment_id ? (
+                                <a
+                                  href={`https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${item.assignment_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white font-extrabold text-[10px] px-2.5 py-1.2 rounded-lg transition-all shadow-2xs hover:shadow-xs"
+                                  title="Buka Dokumen Hasil Sensus di Aplikasi FASIH"
+                                >
+                                  <span>Lihat FASIH</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 font-bold italic">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -386,9 +386,9 @@ export default function PmlMonitoringPage() {
               </button>
             )}
             <div>
-              <h1 className="font-black text-sm sm:text-base text-sky-400 tracking-wide flex items-center gap-2">
+              <h1 className="font-black text-sm sm:text-base text-cyan-400 tracking-wide flex items-center gap-2">
                 <span>SIBULAK</span>
-                <span className="hidden sm:inline-block text-[10px] bg-sky-500/20 text-sky-300 font-mono font-bold px-2 py-0.5 rounded-md border border-sky-500/30">MONITORING PML</span>
+                <span className="hidden sm:inline-block text-[10px] bg-cyan-500/20 text-cyan-300 font-mono font-bold px-2 py-0.5 rounded-md border border-cyan-500/30">MONITORING PML</span>
               </h1>
               <p className="text-[11px] text-slate-400 font-medium truncate max-w-[200px] sm:max-w-xs">
                 {profilUser?.nama_pengguna || profilUser?.email}
@@ -410,7 +410,7 @@ export default function PmlMonitoringPage() {
       <div className="bg-white border-b border-slate-200 sticky top-16 z-20 shadow-2xs">
         <div className="max-w mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-3">
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 overflow-x-auto whitespace-nowrap py-1">
-            <span className="text-sky-600 flex items-center gap-1 shrink-0">
+            <span className="text-cyan-600 flex items-center gap-1 shrink-0">
               <Users className="w-3.5 h-3.5" /> Pengawasan
             </span>
             {selectedPcl && (
@@ -422,7 +422,7 @@ export default function PmlMonitoringPage() {
             {selectedSls && (
               <>
                 <span className="text-slate-400">/</span>
-                <span className="text-sky-600 font-extrabold shrink-0 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md">SLS: {selectedSls.nmsls}</span>
+                <span className="text-cyan-600 font-extrabold shrink-0 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded-md">SLS: {selectedSls.nmsls}</span>
               </>
             )}
           </div>
@@ -438,7 +438,7 @@ export default function PmlMonitoringPage() {
                 }}
                 className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
                   selectedModul === mod.modul_id 
-                    ? 'bg-sky-600 text-white shadow-2xs' 
+                    ? 'bg-cyan-600 text-white shadow-2xs' 
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -452,7 +452,7 @@ export default function PmlMonitoringPage() {
       <main className="max-w mx-auto p-3 sm:p-6 space-y-6">
         {loading ? (
           <div className="text-center py-20 space-y-3">
-            <div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Memuat Data Sektor [{selectedModul}]...</p>
           </div>
         ) : (
@@ -462,11 +462,11 @@ export default function PmlMonitoringPage() {
               <section className="space-y-4">
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-5 rounded-2xl flex justify-between items-center shadow-sm">
                   <div>
-                    <span className="text-[10px] font-extrabold text-sky-400 uppercase tracking-widest block mb-1">Daftar Tim Lapangan</span>
+                    <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-widest block mb-1">Daftar Tim Lapangan</span>
                     <h2 className="text-sm sm:text-base font-black">Petugas Lapangan (PCL) Dampingan [{selectedModul}]</h2>
                     <p className="text-xs text-slate-300 mt-1">Pilih PCL untuk mengecek lokasi SLS yang memiliki potensi anomali.</p>
                   </div>
-                  <Users className="w-10 h-10 text-sky-400 hidden sm:block opacity-80" />
+                  <Users className="w-10 h-10 text-cyan-400 hidden sm:block opacity-80" />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -474,16 +474,16 @@ export default function PmlMonitoringPage() {
                     <div 
                       key={pcl.email}
                       onClick={() => { setSelectedPcl(pcl); loadDaftarSls(pcl.email); }}
-                      className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs hover:border-sky-500 hover:shadow-md cursor-pointer transition-all space-y-4 group"
+                      className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs hover:border-cyan-500 hover:shadow-md cursor-pointer transition-all space-y-4 group"
                     >
                       <div className="flex justify-between items-start gap-2">
                         <div>
-                          <h3 className="font-bold text-slate-900 text-sm group-hover:text-sky-600 transition-colors flex items-center gap-1.5">
+                          <h3 className="font-bold text-slate-900 text-sm group-hover:text-cyan-600 transition-colors flex items-center gap-1.5">
                             <span>🧑</span> {pcl.nama_petugas}
                           </h3>
                           <p className="text-[11px] font-mono text-slate-400 truncate">{pcl.email}</p>
                         </div>
-                        <span className="bg-sky-100 text-sky-900 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-sky-200 shrink-0">
+                        <span className="bg-cyan-100 text-cyan-900 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-cyan-200 shrink-0">
                           {pcl.jumlahSls} SLS
                         </span>
                       </div>
@@ -515,13 +515,13 @@ export default function PmlMonitoringPage() {
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Lokasi Sensus PCL:</span>
                     <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-sky-600" />
+                      <MapPin className="w-4 h-4 text-cyan-600" />
                       {selectedPcl.nama_petugas}
                     </h2>
                   </div>
                   <button 
                     onClick={() => setSelectedPcl(null)}
-                    className="text-xs font-bold text-sky-600 hover:text-sky-800 underline cursor-pointer"
+                    className="text-xs font-bold text-cyan-600 hover:text-cyan-800 underline cursor-pointer"
                   >
                     Ganti PCL
                   </button>
@@ -532,7 +532,7 @@ export default function PmlMonitoringPage() {
                     <div 
                       key={sls.idsubsls}
                       onClick={() => loadDetailAnomaliSls(sls)}
-                      className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:border-sky-500 hover:shadow-md cursor-pointer transition-all flex justify-between items-center gap-3"
+                      className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:border-cyan-500 hover:shadow-md cursor-pointer transition-all flex justify-between items-center gap-3"
                     >
                       <div className="space-y-1">
                         <h3 className="font-bold text-slate-900 text-xs sm:text-sm">{sls.nmsls}</h3>
@@ -569,7 +569,7 @@ export default function PmlMonitoringPage() {
                       placeholder="Cari No Bangunan, Nama KK, atau Aturan QC..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                      className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-cyan-500 focus:outline-none"
                     />
                   </div>
 
@@ -578,7 +578,7 @@ export default function PmlMonitoringPage() {
                     <select
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value)}
-                      className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50 focus:ring-2 focus:ring-sky-500"
+                      className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50 focus:ring-2 focus:ring-cyan-500"
                     >
                       <option value="ALL">Semua ({groupedTasks.length} KK)</option>
                       <option value="PENDING">⏳ Belum Konfirmasi</option>
@@ -606,7 +606,7 @@ export default function PmlMonitoringPage() {
                             <th className="py-3.5 px-4 min-w-[180px]">Nama KK</th>
                             
                             {dynamicColumns.map(col => (
-                              <th key={col.key} className="py-3.5 px-4 min-w-[160px] text-sky-300 bg-slate-800/80 border-l border-slate-700/50">
+                              <th key={col.key} className="py-3.5 px-4 min-w-[160px] text-cyan-300 bg-slate-800/80 border-l border-slate-700/50">
                                 {col.label}
                               </th>
                             ))}
@@ -624,7 +624,7 @@ export default function PmlMonitoringPage() {
                             return (
                               <tr 
                                 key={group.groupKey} 
-                                className={`transition-colors hover:bg-sky-50/40 ${
+                                className={`transition-colors hover:bg-cyan-50/40 ${
                                   hasPending ? 'bg-amber-50/20' : 'bg-white'
                                 }`}
                               >
@@ -672,7 +672,7 @@ export default function PmlMonitoringPage() {
                                         setSelectedGroupedTask(group);
                                         setPmlNotes(group.anomalies[0]?.pml_notes || '');
                                       }}
-                                      className="w-full bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[11px] px-3 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                                      className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-extrabold text-[11px] px-3 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                                     >
                                       <Edit3 className="w-3.5 h-3.5" /> Konfirmasi
                                     </button>
@@ -686,7 +686,7 @@ export default function PmlMonitoringPage() {
                                           setSelectedGroupedTask(group);
                                           setPmlNotes(group.anomalies[0]?.pml_notes || '');
                                         }}
-                                        className="block text-[10px] font-bold text-slate-500 hover:text-sky-600 underline mx-auto cursor-pointer"
+                                        className="block text-[10px] font-bold text-slate-500 hover:text-cyan-600 underline mx-auto cursor-pointer"
                                       >
                                         Edit Catatan
                                       </button>
@@ -729,7 +729,7 @@ export default function PmlMonitoringPage() {
             }}
             className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-[10px] font-bold cursor-pointer transition-all ${
               selectedModul === mod.modul_id 
-                ? 'text-sky-600 font-extrabold bg-sky-50' 
+                ? 'text-cyan-600 font-extrabold bg-cyan-50' 
                 : 'text-slate-500'
             }`}
           >
@@ -746,7 +746,7 @@ export default function PmlMonitoringPage() {
             
             <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-bold text-sky-600 uppercase tracking-wider block">Modal Konfirmasi PML</span>
+                <span className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider block">Modal Konfirmasi PML</span>
                 <h3 className="text-base font-black text-slate-900">{selectedGroupedTask.nama_kk || 'Tanpa Nama KK'} (No. Bang: #{selectedGroupedTask.no_bang || '-'})</h3>
               </div>
               <button 
@@ -779,7 +779,7 @@ export default function PmlMonitoringPage() {
                 value={pmlNotes}
                 onChange={(e) => setPmlNotes(e.target.value)}
                 placeholder="Contoh: Sesuai kondisi lapangan (bambu lapis semen), atau Sudah dikoreksi di FASIH..."
-                className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium"
+                className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-cyan-500 focus:outline-none font-medium"
               />
             </div>
 
@@ -794,7 +794,7 @@ export default function PmlMonitoringPage() {
               <button 
                 onClick={() => handleSaveVerifikasiGroup('RE-SURVEY')}
                 disabled={submitting}
-                className="py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-xs flex items-center justify-center gap-1.5"
+                className="py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-xs flex items-center justify-center gap-1.5"
               >
                 <HelpCircle className="w-4 h-4" /> Sudah Perbaiki di FASIH
               </button>

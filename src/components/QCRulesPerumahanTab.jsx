@@ -284,9 +284,9 @@ export default function QCRulesTab({ selectedModul = 'PERUMAHAN', onRuleChange }
           <button
             type="button"
             onClick={() => setRuleType('CROSS_COLUMN')}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${ruleType === 'CROSS_COLUMN' ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-200' : 'border-slate-200 hover:border-slate-300'}`}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${ruleType === 'CROSS_COLUMN' ? 'border-cyan-500 bg-cyan-50/50 ring-2 ring-cyan-200' : 'border-slate-200 hover:border-slate-300'}`}
           >
-            <div className={`p-2 rounded-lg ${ruleType === 'CROSS_COLUMN' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+            <div className={`p-2 rounded-lg ${ruleType === 'CROSS_COLUMN' ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
               <GitMerge className="w-4 h-4" />
             </div>
             <div>
@@ -342,7 +342,7 @@ export default function QCRulesTab({ selectedModul = 'PERUMAHAN', onRuleChange }
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
               <div className="flex justify-between items-center">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <GitMerge className="w-3.5 h-3.5 text-sky-600" />
+                  <GitMerge className="w-3.5 h-3.5 text-cyan-600" />
                   Kondisi Syarat {ruleType === 'CROSS_COLUMN' && '(Seluruh Syarat Harus Terpenuhi - LOGIKA AND)'}
                 </label>
 
@@ -350,7 +350,7 @@ export default function QCRulesTab({ selectedModul = 'PERUMAHAN', onRuleChange }
                   <button
                     type="button"
                     onClick={handleAddCondition}
-                    className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-sky-200 shadow-2xs"
+                    className="text-xs font-bold text-cyan-600 hover:text-cyan-700 flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-cyan-200 shadow-2xs"
                   >
                     <Plus className="w-3.5 h-3.5" /> Tambah Syarat (AND)
                   </button>
@@ -364,7 +364,7 @@ export default function QCRulesTab({ selectedModul = 'PERUMAHAN', onRuleChange }
                     <select
                       value={cond.target_column}
                       onChange={(e) => handleConditionChange(idx, 'target_column', e.target.value)}
-                      className="w-full p-2 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full p-2 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500"
                     >
                       {kolomList.map(col => (
                         <option key={col.kolom_id} value={col.nama_kolom_db}>
@@ -570,7 +570,7 @@ export default function QCRulesTab({ selectedModul = 'PERUMAHAN', onRuleChange }
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${
-                        ruleT === 'CROSS_COLUMN' ? 'bg-sky-100 text-sky-800 border-sky-200' :
+                        ruleT === 'CROSS_COLUMN' ? 'bg-cyan-100 text-cyan-800 border-cyan-200' :
                         ruleT === 'AGGREGATION' ? 'bg-purple-100 text-purple-800 border-purple-200' :
                         'bg-orange-100 text-orange-800 border-orange-200'
                       }`}>
@@ -592,7 +592,7 @@ export default function QCRulesTab({ selectedModul = 'PERUMAHAN', onRuleChange }
                           <span key={ci} className="bg-white text-slate-800 text-[10px] font-medium px-2 py-0.5 rounded-md border border-slate-300 flex items-center gap-1 shadow-2xs">
                             <span className="font-bold text-slate-900">{c.target_column}</span>
                             <span className="text-orange-600 font-bold">{c.operator}</span>
-                            <span className="text-sky-700 font-bold">[{Array.isArray(c.trigger_values) ? c.trigger_values.join(', ') : ''}]</span>
+                            <span className="text-cyan-700 font-bold">[{Array.isArray(c.trigger_values) ? c.trigger_values.join(', ') : ''}]</span>
                           </span>
                         ))
                       ) : (

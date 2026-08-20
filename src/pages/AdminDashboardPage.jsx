@@ -289,9 +289,9 @@ const cleanedRows = rawRows.map(row => {
       {/* NAVBAR HEADER */}
       <header className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-20 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <Settings className="w-6 h-6 text-sky-400" />
+          <Settings className="w-6 h-6 text-cyan-400" />
           <div>
-            <h1 className="font-black text-base sm:text-lg tracking-wide text-sky-400">
+            <h1 className="font-black text-base sm:text-lg tracking-wide text-cyan-400">
               SIBULAK - {isAdmin ? 'PANEL ADMIN' : 'DASHBOARD MONITORS'}
             </h1>
             <p className="text-[10px] text-slate-400">
@@ -320,7 +320,7 @@ const cleanedRows = rawRows.map(row => {
                   onClick={() => setSelectedModul(mod.modul_id)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     selectedModul === mod.modul_id
-                      ? 'bg-sky-600 text-white shadow-xs'
+                      ? 'bg-cyan-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -332,7 +332,7 @@ const cleanedRows = rawRows.map(row => {
 
           <div className="text-right hidden sm:block">
             <span className="text-[10px] font-mono text-slate-400 block">Modul Aktif:</span>
-            <span className="text-xs font-black text-sky-600 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200">
+            <span className="text-xs font-black text-cyan-600 bg-cyan-50 px-2.5 py-1 rounded-lg border border-cyan-200">
               {selectedModul}
             </span>
           </div>
@@ -344,7 +344,7 @@ const cleanedRows = rawRows.map(row => {
             onClick={() => setActiveTab('TABULASI')}
             className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
               activeTab === 'TABULASI' 
-                ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
+                ? 'bg-white text-cyan-600 border-t-2 border-cyan-600 shadow-2xs' 
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -355,7 +355,7 @@ const cleanedRows = rawRows.map(row => {
             onClick={() => setActiveTab('REKAP_PETUGAS')}
             className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
               activeTab === 'REKAP_PETUGAS' 
-                ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
+                ? 'bg-white text-cyan-600 border-t-2 border-cyan-600 shadow-2xs' 
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -368,7 +368,7 @@ const cleanedRows = rawRows.map(row => {
                 onClick={() => setActiveTab('RULES')}
                 className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
                   activeTab === 'RULES' 
-                    ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
+                    ? 'bg-white text-cyan-600 border-t-2 border-cyan-600 shadow-2xs' 
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -379,7 +379,7 @@ const cleanedRows = rawRows.map(row => {
                 onClick={() => setActiveTab('KOLOM')}
                 className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
                   activeTab === 'KOLOM' 
-                    ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
+                    ? 'bg-white text-cyan-600 border-t-2 border-cyan-600 shadow-2xs' 
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -390,7 +390,7 @@ const cleanedRows = rawRows.map(row => {
                 onClick={() => setActiveTab('IMPORT')}
                 className={`py-2.5 px-4 font-bold text-xs rounded-t-xl transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
                   activeTab === 'IMPORT' 
-                    ? 'bg-white text-sky-600 border-t-2 border-sky-600 shadow-2xs' 
+                    ? 'bg-white text-cyan-600 border-t-2 border-cyan-600 shadow-2xs' 
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -420,7 +420,7 @@ const cleanedRows = rawRows.map(row => {
                 <section className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-4">
                   <div className="flex justify-between items-center">
                     <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <Database className="w-4 h-4 text-sky-600" /> 
+                      <Database className="w-4 h-4 text-cyan-600" /> 
                       {editingKolomId ? 'Edit Registrasi Kolom' : 'Registrasi Kolom DB & Setting Range Tabulasi'} [{selectedModul}]
                     </h2>
                     {editingKolomId && (
@@ -439,7 +439,7 @@ const cleanedRows = rawRows.map(row => {
                         placeholder="Contoh: biaya_sewa"
                         value={namaKolomDb}
                         onChange={(e) => setNamaKolomDb(e.target.value)}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-cyan-500 focus:outline-none"
                       />
                     </div>
 
@@ -451,7 +451,7 @@ const cleanedRows = rawRows.map(row => {
                         placeholder="Contoh: Biaya Sewa Bulanan"
                         value={labelTampilan}
                         onChange={(e) => setLabelTampilan(e.target.value)}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-cyan-500 focus:outline-none"
                       />
                     </div>
 
@@ -501,7 +501,7 @@ const cleanedRows = rawRows.map(row => {
                     <h2 className="text-sm font-bold text-slate-900">Daftar Kolom Terdaftar [{selectedModul}]</h2>
                     <button 
                       onClick={() => fetchKolom(true)}
-                      className="text-xs font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
+                      className="text-xs font-bold text-cyan-600 hover:text-cyan-800 flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isFetchingKolom ? 'animate-spin' : ''}`} /> Refresh Data
                     </button>
@@ -541,7 +541,7 @@ const cleanedRows = rawRows.map(row => {
                             <td className="p-3 text-right space-x-1">
                               <button 
                                 onClick={() => handleEditKolomClick(col)}
-                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer inline-block"
+                                className="p-1.5 text-cyan-600 hover:bg-cyan-50 rounded-lg cursor-pointer inline-block"
                               >
                                 <Edit3 className="w-4 h-4" />
                               </button>
@@ -566,7 +566,7 @@ const cleanedRows = rawRows.map(row => {
               <div className="space-y-6">
                 <section className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-4">
                   <div className="flex items-center gap-3">
-                    <FileSpreadsheet className="w-8 h-8 text-sky-600" />
+                    <FileSpreadsheet className="w-8 h-8 text-cyan-600" />
                     <div>
                       <h2 className="text-sm font-bold text-slate-900">Import File CSV Data Hasil Sensus [{selectedModul}]</h2>
                       <p className="text-xs text-slate-500">
@@ -581,7 +581,7 @@ const cleanedRows = rawRows.map(row => {
                     <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-3 bg-slate-50/50 hover:bg-slate-50 transition-colors">
                       <Upload className="w-10 h-10 text-slate-400 mx-auto" />
                       <div>
-                        <label htmlFor="csv-file-input" className="cursor-pointer text-xs font-bold text-sky-600 hover:underline">
+                        <label htmlFor="csv-file-input" className="cursor-pointer text-xs font-bold text-cyan-600 hover:underline">
                           Pilih File CSV
                         </label>
                         <input 
@@ -604,7 +604,7 @@ const cleanedRows = rawRows.map(row => {
                           <span>{uploadProgress}%</span>
                         </div>
                         <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                          <div className="bg-sky-600 h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                          <div className="bg-cyan-600 h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
                         </div>
                       </div>
                     )}
@@ -623,7 +623,7 @@ const cleanedRows = rawRows.map(row => {
                     <button
                       type="submit"
                       disabled={uploading || !csvFile}
-                      className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-2xs"
+                      className="w-full py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:bg-slate-300 transition-all shadow-2xs"
                     >
                       {uploading ? 'Memproses Import...' : `Mulai Import CSV [Modul ${selectedModul}]`}
                     </button>
