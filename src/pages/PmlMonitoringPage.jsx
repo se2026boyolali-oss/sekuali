@@ -231,98 +231,103 @@ export default function PmlMonitoringPage() {
     }
   }, [selectedModul, profilUser?.email, selectedSls, selectedPcl, loadDetailAnomaliSls, loadDaftarSls, loadDaftarPcl, loadTasksByKecamatan]);
 
-  // LOGIKA 1: MENGELOMPOKKAN PER KK BERDASARKAN NO_BANG
-  const groupedTasks = useMemo(() => {
-    if (!rawTasks || rawTasks.length === 0) return [];
+// LOGIKA 1: MENGELOMPOKKAN PER KK / ART
+const groupedTasks = useMemo(() => {
+  if (!rawTasks || rawTasks.length === 0) return [];
 
-    const groups = {};
+  const groups = {};
 
-    rawTasks.forEach(task => {
-      const groupKey = `${task.assignment_id || task.level_6_full_code}_${task.nama_kk || 'TANPA_NAMA'}`;
+  rawTasks.forEach(task => {
+    // Pastikan key memperhitungkan index1 untuk modul INDIVIDU
+    const artIdx = task.index1 ?? task.index_art;
+    const groupKey = (selectedModul === 'INDIVIDU' && artIdx !== undefined)
+      ? `${task.assignment_id || task.level_6_full_code}_${artIdx}`
+      : `${task.assignment_id || task.level_6_full_code}_${task.nama_kk || 'TANPA_NAMA'}`;
 
-      if (!groups[groupKey]) {
-        groups[groupKey] = {
-          groupKey,
-          assignment_id: task.assignment_id,
-          level_6_full_code: task.level_6_full_code,
-          nama_kk: task.nama_kk,
-          no_bang: task.no_bang || '',
-          anomalies: [],
-          fieldValues: {}
-        };
-      }
-
-      const colName = task.target_column || 'anomali_umum';
-      const cellValue = task.value_found || task.reason || 'Perlu Konfirmasi';
-
-      groups[groupKey].fieldValues[colName] = {
-        value: cellValue,
-        rule_name: task.rule_name,
-        reason: task.reason
+    if (!groups[groupKey]) {
+      groups[groupKey] = {
+        groupKey,
+        assignment_id: task.assignment_id,
+        index1: artIdx,
+        level_6_full_code: task.level_6_full_code,
+        nama_kk: task.nama_kk,
+        no_bang: task.no_bang || '',
+        anomalies: [],
+        fieldValues: {}
       };
-
-      groups[groupKey].anomalies.push({
-        confirmation_id: task.confirmation_id,
-        rule_name: task.rule_name,
-        reason: task.reason,
-        status_konfirmasi: task.status_konfirmasi,
-        pml_notes: task.pml_notes,
-        colName
-      });
-    });
-
-    let result = Object.values(groups);
-
-    // Sort berdasarkan No Bangunan (Numerik)
-    result.sort((a, b) => {
-      const numA = parseInt(a.no_bang, 10);
-      const numB = parseInt(b.no_bang, 10);
-      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-      return (a.no_bang || '').localeCompare(b.no_bang || '');
-    });
-
-    // Filter Search
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(g => 
-        g.nama_kk?.toLowerCase().includes(term) ||
-        g.no_bang?.toLowerCase().includes(term) ||
-        g.level_6_full_code?.toLowerCase().includes(term) ||
-        g.anomalies.some(a => a.rule_name?.toLowerCase().includes(term) || a.reason?.toLowerCase().includes(term))
-      );
     }
 
-    // Filter Status
-    if (filterStatus !== 'ALL') {
-      result = result.filter(g => {
-        const isPending = g.anomalies.some(a => a.status_konfirmasi === 'PENDING');
-        return filterStatus === 'PENDING' ? isPending : !isPending;
+    // Normalisasi kunci kolom (hapus spasi dan jadikan lowercase)
+    const rawCol = task.target_column ? String(task.target_column).trim() : 'anomali_umum';
+    const cellValue = task.value_found ?? task.reason ?? 'Perlu Konfirmasi';
+
+    groups[groupKey].fieldValues[rawCol] = {
+      value: cellValue,
+      rule_name: task.rule_name,
+      reason: task.reason
+    };
+
+    groups[groupKey].anomalies.push({
+      confirmation_id: task.confirmation_id,
+      rule_name: task.rule_name,
+      reason: task.reason,
+      status_konfirmasi: task.status_konfirmasi,
+      pml_notes: task.pml_notes,
+      colName: rawCol
+    });
+  });
+
+  let result = Object.values(groups);
+
+  // Sorting
+  result.sort((a, b) => {
+    const numA = parseInt(a.no_bang, 10);
+    const numB = parseInt(b.no_bang, 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return (a.no_bang || '').localeCompare(b.no_bang || '');
+  });
+
+  // Filter Search & Status
+  if (searchTerm.trim()) {
+    const term = searchTerm.toLowerCase();
+    result = result.filter(g => 
+      g.nama_kk?.toLowerCase().includes(term) ||
+      g.no_bang?.toLowerCase().includes(term) ||
+      g.level_6_full_code?.toLowerCase().includes(term) ||
+      g.anomalies.some(a => a.rule_name?.toLowerCase().includes(term) || a.reason?.toLowerCase().includes(term))
+    );
+  }
+
+  if (filterStatus !== 'ALL') {
+    result = result.filter(g => {
+      const isPending = g.anomalies.some(a => a.status_konfirmasi === 'PENDING');
+      return filterStatus === 'PENDING' ? isPending : !isPending;
+    });
+  }
+
+  return result;
+}, [rawTasks, searchTerm, filterStatus, selectedModul]);
+
+// LOGIKA 2: EKSTRAKSI DAFTAR KOLOM DYNAMIC
+const dynamicColumns = useMemo(() => {
+  if (!rawTasks || rawTasks.length === 0) return [];
+
+  const colMap = new Map();
+
+  rawTasks.forEach(task => {
+    const colKey = task.target_column ? String(task.target_column).trim() : 'anomali_umum';
+    const colLabel = colKey.replace(/_/g, ' ').toUpperCase();
+
+    if (!colMap.has(colKey)) {
+      colMap.set(colKey, {
+        key: colKey,
+        label: colLabel
       });
     }
+  });
 
-    return result;
-  }, [rawTasks, searchTerm, filterStatus]);
-
-  // LOGIKA 2: EKSTRAKSI DAFTAR KOLOM YANG MEMILIKI ANOMALI
-  const dynamicColumns = useMemo(() => {
-    if (!rawTasks || rawTasks.length === 0) return [];
-
-    const colMap = new Map();
-
-    rawTasks.forEach(task => {
-      const colKey = task.target_column || 'anomali_umum';
-      const colLabel = colKey.replace(/_/g, ' ').toUpperCase();
-
-      if (!colMap.has(colKey)) {
-        colMap.set(colKey, {
-          key: colKey,
-          label: colLabel
-        });
-      }
-    });
-
-    return Array.from(colMap.values());
-  }, [rawTasks]);
+  return Array.from(colMap.values());
+}, [rawTasks]);
 
   // HANDLER SIMPAN VERIFIKASI
   const handleSaveVerifikasiGroup = async (status) => {
