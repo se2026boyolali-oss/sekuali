@@ -216,7 +216,6 @@ export default function RekapAnomaliPetugasTab({ selectedModul = 'PERUMAHAN' }) 
 
     if (selectedModul === 'INDIVIDU') {
       targetTable = 'assignments_individu';
-      // Jika rawAssignmentId berupa gabungan string "ASSIGNID_INDEX1"
       if (rawAssignmentId && String(rawAssignmentId).includes('_')) {
         const parts = String(rawAssignmentId).split('_');
         cleanId = parts[0];
@@ -232,7 +231,6 @@ export default function RekapAnomaliPetugasTab({ selectedModul = 'PERUMAHAN' }) 
         .select('*')
         .eq('assignment_id', cleanId);
 
-      // Proteksi khusus modul INDIVIDU agar filter menggunakan index1
       if (selectedModul === 'INDIVIDU' && cleanIndex !== undefined && cleanIndex !== null) {
         query = query.eq('index1', cleanIndex);
       }
@@ -259,15 +257,12 @@ export default function RekapAnomaliPetugasTab({ selectedModul = 'PERUMAHAN' }) 
     ];
 
     const karakteristikKeys = [
-      // Perumahan
       'no_bang', 'kode_bang_label', 'status_kepemilikan_label', 'luas_lantai', 
       'biaya_sewa', 'jns_dinding_label', 'jns_lantai_label', 'jns_atap_label', 
       'jns_closet_label', 'buang_tinja_label', 'air_minum_label', 
       'sumber_penerangan_label', 'jml_meteran',
-      // Individu
       'hubungan_label', 'status_kawin_label', 'profesi_label', 
       'nilai_pend_pekerjaan', 'nilai_pend_lain', 'pend_usaha',
-      // Usaha
       'kegiatan_usaha', 'omset_usaha', 'jumlah_tenaga_kerja'
     ];
 
@@ -367,13 +362,18 @@ export default function RekapAnomaliPetugasTab({ selectedModul = 'PERUMAHAN' }) 
         </div>
       </div>
 
-      {/* TABEL HIERARKIS REKAP ANOMALI */}
-      <div className="bg-white rounded-2xl shadow-2xs border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
+      {/* TABEL HIERARKIS REKAP ANOMALI WITH STICKY HEADER & COLUMN */}
+      <div className="bg-white rounded-2xl shadow-2xs border border-slate-200 space-y-4 p-6">
+        {/* CONTAINER SCROLL BARIS DENGAN MAX-HEIGHT */}
+        <div className="overflow-auto max-h-[75vh] border border-slate-200 rounded-2xl relative shadow-inner">
           <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-900 text-white font-bold text-[11px] tracking-wider uppercase">
-                <th className="p-3.5 min-w-[280px] border-r border-slate-800">Wilayah / Petugas Pendata</th>
+            {/* HEADER STICKY ATAS */}
+            <thead className="sticky top-0 z-20 bg-slate-900 text-white font-bold text-[11px] tracking-wider uppercase shadow-xs">
+              <tr>
+                {/* Sel Kiri Atas: Z-INDEX 30 Agar Menimpa Isi Baris & Header Kolom Saat Di-scroll */}
+                <th className="p-3.5 min-w-[280px] border-r border-slate-800 sticky left-0 top-0 bg-slate-900 z-30 shadow-xs">
+                  Wilayah / Petugas Pendata
+                </th>
                 {activeRules.map(rule => (
                   <th key={rule.rule_id} className="p-3.5 text-center min-w-[150px] border-r border-slate-800">
                     <div className="font-bold text-white text-xs leading-snug" title={rule.rule_name}>
@@ -397,7 +397,8 @@ export default function RekapAnomaliPetugasTab({ selectedModul = 'PERUMAHAN' }) 
                       onClick={() => setExpandedKec(p => ({ ...p, [kec.name]: !p[kec.name] }))}
                       className="bg-cyan-50/70 hover:bg-cyan-100/80 cursor-pointer font-bold text-cyan-900 transition-colors"
                     >
-                      <td className="p-3.5 flex items-center justify-between border-r border-cyan-200/60">
+                      {/* Sel Kiri Kecamatan (Sticky Left) */}
+                      <td className="p-3.5 flex items-center justify-between border-r border-cyan-200/60 sticky left-0 bg-cyan-100 z-10 shadow-xs">
                         <div className="flex items-center gap-2">
                           {isKecOpen ? <ChevronDown className="w-4 h-4 text-cyan-600" /> : <ChevronRight className="w-4 h-4 text-cyan-600" />}
                           <MapPin className="w-4 h-4 text-cyan-600 shrink-0" />
@@ -431,7 +432,8 @@ export default function RekapAnomaliPetugasTab({ selectedModul = 'PERUMAHAN' }) 
                             onClick={() => setExpandedPml(p => ({ ...p, [pmlKey]: !p[pmlKey] }))}
                             className="bg-amber-50/50 hover:bg-amber-100/60 cursor-pointer text-amber-950 font-bold transition-colors"
                           >
-                            <td className="p-3 pl-8 flex items-center justify-between border-r border-amber-200/50">
+                            {/* Sel Kiri PML (Sticky Left) */}
+                            <td className="p-3 pl-8 flex items-center justify-between border-r border-amber-200/50 sticky left-0 bg-amber-100/90 z-10 shadow-xs">
                               <div className="flex items-center gap-2">
                                 {isPmlOpen ? <ChevronDown className="w-3.5 h-3.5 text-amber-600" /> : <ChevronRight className="w-3.5 h-3.5 text-amber-600" />}
                                 <UserCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -457,7 +459,8 @@ export default function RekapAnomaliPetugasTab({ selectedModul = 'PERUMAHAN' }) 
                           {/* LEVEL 3: PPL (PENDATA) */}
                           {isPmlOpen && Object.values(pml.pplGroup).map(ppl => (
                             <tr key={ppl.emailPpl} className="hover:bg-slate-50 transition-colors">
-                              <td className="p-2.5 pl-14 font-semibold text-slate-700 flex items-center justify-between border-r border-slate-200">
+                              {/* Sel Kiri PPL (Sticky Left) */}
+                              <td className="p-2.5 pl-14 font-semibold text-slate-700 flex items-center justify-between border-r border-slate-200 sticky left-0 bg-white z-10 shadow-xs">
                                 <div className="flex items-center gap-2">
                                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
                                   <span>PPL: {ppl.name}</span>
@@ -559,7 +562,6 @@ export default function RekapAnomaliPetugasTab({ selectedModul = 'PERUMAHAN' }) 
 
                     <div className="space-y-2 pl-2">
                       {slsGroup.items.map(task => {
-                        // KUNCI UTAMA: Penanganan Index1 untuk unik key React di Modul INDIVIDU
                         const artIndex = task.index1 ?? task.index_art;
                         const rowKey = (selectedModul === 'INDIVIDU' && artIndex !== undefined)
                           ? `${task.assignment_id}_${artIndex}`

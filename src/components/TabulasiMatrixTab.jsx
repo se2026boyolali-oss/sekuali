@@ -343,13 +343,11 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
   }, [selectedKolom, activeRules]);
 
   const handleWilayahClick = (row) => {
-    // Membaca lvl_wil dan kode_wil dari return SQL terbaru
     const levelWil = row.lvl_wil || row.level_wilayah;
     const kodeWil = row.kode_wil || row.kode_wilayah;
     const namaWil = row.nama_wil || row.nama_wilayah;
 
     if (levelWil === 'KECAMATAN') {
-      // Ambil kode kecamatan (3 digit angka jika formatnya '[010] KEC. BOYOLALI')
       const cleanCode = kodeWil.length > 3 ? kodeWil.slice(-3) : kodeWil;
       setCurrentKec({ code: cleanCode, name: namaWil });
     } else if (levelWil === 'DESA') {
@@ -375,7 +373,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     const activeKolomObj = kolomOptions?.find(k => k.nama_kolom_db === selectedKolom);
     const labelKolom = activeKolomObj ? activeKolomObj.label_tampilan : selectedKolom;
 
-    // AMBIL KODE WILAYAH DENGAN SAFE FALLBACK (karena dari fungsi matriks namanya kode_wil)
     const kodeWilayahFix = String(row.kode_wil || row.kode_wilayah || '');
     const levelWilayahFix = String(row.lvl_wil || row.level_wilayah || 'KECAMATAN');
 
@@ -395,7 +392,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
     setModalLoading(true);
 
     try {
-      // Panggil RPC dengan SEMUA KEY TERDEFINISI (tidak ada undefined)
       const { data, error } = await supabaseData.rpc('get_detail_rt_tabulasi', {
         p_modul_id: selectedModul || 'PERUMAHAN',
         p_kolom: selectedKolom || '',
@@ -409,7 +405,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
       const resultList = data || [];
       setDetailList(resultList);
 
-      // Ekstrak Nama PML & PPL secara otomatis
       if (resultList.length > 0) {
         const uniquePml = Array.from(new Set(resultList.map(i => i.nama_pml).filter(v => v && v !== '-')));
         const uniquePpl = Array.from(new Set(resultList.map(i => i.nama_ppl).filter(v => v && v !== '-')));
@@ -572,7 +567,7 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
         </div>
       </section>
 
-      {/* TABEL MATRIKS TABULASI */}
+      {/* TABEL MATRIKS TABULASI WITH STICKY HEADER & FOOTER */}
       <section className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-4">
         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
           <div className="text-xs text-slate-500">
@@ -592,12 +587,20 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
         ) : matrixData.length === 0 ? (
           <div className="text-center py-12 text-slate-400 text-xs italic">Data tidak ditemukan pada hirarki wilayah ini.</div>
         ) : (
-          <div className="overflow-x-auto">
+          /* CONTAINER SCROLL BARIS DENGAN MAX-HEIGHT */
+          <div className="overflow-auto max-h-[70vh] border border-slate-200 rounded-2xl relative shadow-inner">
             <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-100 text-slate-700 uppercase text-[10px] font-black border-b border-slate-200">
-                  <th className="p-3 border-r border-slate-200 sticky left-0 bg-slate-100 z-10 w-64">[Kode] Wilayah</th>
-                  <th className="p-3 border-r border-slate-200 text-center w-24">Total {selectedModul === 'INDIVIDU' ? 'ART' : 'KK'}</th>
+              
+              {/* HEADER TIKET MENEMPEL PADA SCROLL ATAS */}
+              <thead className="sticky top-0 z-20 bg-slate-100 text-slate-700 uppercase text-[10px] font-black border-b border-slate-200 shadow-xs">
+                <tr>
+                  {/* Sel Kiri Atas: Z-INDEX 30 Agar Menimpa Isi Baris & Header Kolom */}
+                  <th className="p-3 border-r border-slate-200 sticky left-0 top-0 bg-slate-100 z-30 w-64 shadow-xs">
+                    [Kode] Wilayah
+                  </th>
+                  <th className="p-3 border-r border-slate-200 text-center w-24">
+                    Total {selectedModul === 'INDIVIDU' ? 'ART' : 'KK'}
+                  </th>
                   
                   {categories.map((cat, idx) => {
                     const alreadyAdded = isCategoryInRule(cat);
@@ -633,13 +636,16 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
                   })}
                 </tr>
               </thead>
+
+              {/* BODY TABEL MATRIKS */}
               <tbody className="divide-y divide-slate-100 font-medium">
                 {matrixData.map((row, rIdx) => {
                   const rowTotal = Number(row.total_rt || 0);
 
                   return (
                     <tr key={rIdx} className="hover:bg-cyan-50/30 transition-colors">
-                      <td className="p-3 border-r border-slate-200 sticky left-0 bg-white font-bold text-slate-900">
+                      {/* Sel Kiri: Menempel Kiri Saat Di-scroll Horizontal */}
+                      <td className="p-3 border-r border-slate-200 sticky left-0 bg-white font-bold text-slate-900 z-10 shadow-xs">
                         {row.level_wilayah !== 'SLS' ? (
                           <button
                             onClick={() => handleWilayahClick(row)}
@@ -694,9 +700,11 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
                 })}
               </tbody>
 
-              <tfoot>
-                <tr className="bg-slate-200 text-slate-900 font-extrabold text-xs border-t-2 border-slate-300">
-                  <td className="p-3 border-r border-slate-300 sticky left-0 bg-slate-200 z-10 uppercase">
+              {/* FOOTER MENEMPEL PADA Bawah BILA SCROLL SANGAT PANJANG */}
+              <tfoot className="sticky bottom-0 z-20 bg-slate-200 text-slate-900 font-extrabold text-xs border-t-2 border-slate-300 shadow-md">
+                <tr>
+                  {/* Sel Kiri Bawah: Z-INDEX 30 Untuk Menutupi Pojok Kiri Saat Di-scroll Horizontal & Vertikal */}
+                  <td className="p-3 border-r border-slate-300 sticky left-0 bottom-0 bg-slate-200 z-30 uppercase shadow-xs">
                     TOTAL KESELURUHAN
                   </td>
                   <td className="p-3 border-r border-slate-300 text-center font-mono font-black text-cyan-700">
@@ -732,7 +740,7 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
             className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* HEADER MODAL DENGAN INFORMASI LENGKAP */}
+            {/* HEADER MODAL */}
             <div className="bg-slate-900 text-white p-5 flex justify-between items-start shrink-0 space-y-2">
               <div className="space-y-2 w-full pr-4">
                 <div className="flex items-center justify-between">
@@ -838,7 +846,6 @@ export default function TabulasiMatrixTab({ selectedModul = 'PERUMAHAN', onRuleA
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
                       {filteredDetailList.map((item, idx) => {
-                        // KUNCI UTAMA: Gabungkan assignment_id dan index1 (atau index_art) agar key React 100% Unik per individu
                         const artIndex = item.index1 ?? item.index_art;
                         const rowKey = artIndex !== undefined 
                           ? `${item.assignment_id}_${artIndex}` 
